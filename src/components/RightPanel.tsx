@@ -126,7 +126,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       const role = row.slot ? (SLOT_TO_ROLE[row.slot] ?? '') : (ROLES[idx] ?? '');
       const isLibero = row.position === 'L' || role === 'L';
       const pos = role && posMap[role] ? posMap[role] : { x: 0, y: 0 };
-      const isVisible = !!row.slot && !!role && asTeam === 'A';
+      const isVisible = !!row.slot && !!role;
       const color = row.color || (isLibero ? '#1f2937' : fallbackColor);
       const nameColor: 'white' | 'black' | undefined = (row.nameColor === 'white' || row.nameColor === 'black')
         ? row.nameColor : undefined;
