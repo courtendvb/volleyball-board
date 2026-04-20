@@ -597,10 +597,18 @@ export default function App() {
     }
 
     const dataURL = stage.toDataURL(exportOpts);
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = 'volleyball-board.png';
-    a.click();
+    const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobileDevice) {
+      const w = window.open();
+      if (w) {
+        w.document.write(`<img src="${dataURL}" style="max-width:100%" /><p style="font-family:sans-serif;color:#555">長押しして「写真に保存」または「画像を保存」</p>`);
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'volleyball-board.png';
+      a.click();
+    }
   };
 
   const handleLoadProject = (p: SavedProject) => {
