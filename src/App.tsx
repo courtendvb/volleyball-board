@@ -843,7 +843,7 @@ export default function App() {
         mobileVisible={!isMobile || mobileTab === 'draw'}
       />
 
-      <AnimationPanel board={board} mobileVisible={!isMobile || mobileTab === 'anim'} />
+      <AnimationPanel board={board} mobileVisible={!isMobile || mobileTab === 'anim'} stageRef={stageRef} />
 
       <RightPanel board={board} fontFamily={fontFamily} setFontFamily={setFontFamily} mobileVisible={!isMobile || mobileTab === 'players'} onAddPlayer={handleAddPlayer} />
 

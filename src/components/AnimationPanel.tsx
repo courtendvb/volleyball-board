@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import type { Board } from '../hooks/useBoard';
+import type Konva from 'konva';
 import { theme, panelSurface } from '../ui/theme';
 import { Button, IconButton } from '../ui/Button';
 import { FieldLabel, Input } from '../ui/Panel';
@@ -13,6 +14,7 @@ interface SavedAnimation { frames: AnimFrame[]; duration: number; }
 interface Props {
   board: Board;
   mobileVisible?: boolean;
+  stageRef?: React.RefObject<Konva.Stage | null>;
 }
 
 const loadSavedAnimations = (): Record<string, SavedAnimation> => {
@@ -25,11 +27,12 @@ const loadSavedAnimations = (): Record<string, SavedAnimation> => {
   }
 };
 
-export const AnimationPanel = ({ board, mobileVisible }: Props) => {
+export const AnimationPanel = ({ board, mobileVisible, stageRef }: Props) => {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(isMobile);
   const [frames, setFrames] = useState<AnimFrame[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [animName, setAnimName] = useState('');
   const [duration, setDuration] = useState(800);
   const [savedAnimations, setSavedAnimations] = useState<Record<string, SavedAnimation>>(loadSavedAnimations);
@@ -37,6 +40,7 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
   const cancelRef = useRef(false);
   const repeatRef = useRef(false);
   const rafRef = useRef<number | null>(null);
+  const compositeRafRef = useRef<number | null>(null);
 
   const hidden = isMobile && !mobileVisible;
 
@@ -102,6 +106,101 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
     setIsPlaying(false);
   };
 
+  const exportAnimation = async () => {
+    if (frames.length < 2) { alert('フレームが2つ以上必要です'); return; }
+    if (!stageRef?.current) { alert('ステージが見つかりません'); return; }
+    if (!('MediaRecorder' in window)) {
+      alert('お使いのブラウザは動画書き出しに対応していません');
+      return;
+    }
+
+    const stage = stageRef.current;
+    const container = stage.container();
+    const konvaCanvases = Array.from(container.querySelectorAll('canvas')) as HTMLCanvasElement[];
+    if (konvaCanvases.length === 0) return;
+
+    const w = konvaCanvases[0].width;
+    const h = konvaCanvases[0].height;
+
+    const recordCanvas = document.createElement('canvas');
+    recordCanvas.width = w;
+    recordCanvas.height = h;
+    const ctx = recordCanvas.getContext('2d')!;
+
+    const mimeType =
+      MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' :
+      MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
+      MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : null;
+
+    if (!mimeType) {
+      alert('お使いのブラウザは動画書き出しに対応していません');
+      return;
+    }
+
+    setIsExporting(true);
+    cancelRef.current = false;
+
+    const stream = recordCanvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType: mimeType.split(';')[0] });
+    const chunks: Blob[] = [];
+
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
+      const url = URL.createObjectURL(blob);
+      const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobileDevice) {
+        const win = window.open();
+        if (win) {
+          win.document.write(
+            `<video src="${url}" controls autoplay playsinline style="max-width:100%;display:block"></video>` +
+            `<p style="font-family:sans-serif;color:#555;padding:8px">長押しして「動画を保存」</p>`
+          );
+        }
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `animation.${ext}`;
+        a.click();
+      }
+      URL.revokeObjectURL(url);
+      setIsExporting(false);
+    };
+
+    // 合成ループ: Konvaの全レイヤーを recordCanvas に描画し続ける
+    const bgColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--canvas-bg').trim() || '#f0f4f8';
+    const drawComposite = () => {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, w, h);
+      container.querySelectorAll('canvas').forEach(c => {
+        ctx.drawImage(c as HTMLCanvasElement, 0, 0, w, h);
+      });
+      compositeRafRef.current = requestAnimationFrame(drawComposite);
+    };
+    drawComposite();
+
+    recorder.start(100);
+
+    // アニメーション再生
+    const ids0 = Object.keys(frames[0]);
+    board.updateShapes(ids0.map(id => ({
+      id, changes: { x: frames[0][id].x, y: frames[0][id].y },
+    })));
+
+    for (let i = 0; i < frames.length - 1; i++) {
+      if (cancelRef.current) break;
+      await animateToFrame(frames[i], frames[i + 1], duration);
+    }
+
+    await new Promise(r => setTimeout(r, 400));
+
+    if (compositeRafRef.current) cancelAnimationFrame(compositeRafRef.current);
+    compositeRafRef.current = null;
+    recorder.stop();
+  };
+
   const saveAnimation = () => {
     if (!animName.trim()) { alert('アニメーション名を入力してください'); return; }
     if (frames.length < 2) { alert('フレームが2つ以上必要です'); return; }
@@ -126,6 +225,8 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
     localStorage.setItem(ANIM_STORAGE_KEY, JSON.stringify(newSaved));
   };
 
+  const busy = isPlaying || isExporting;
+
   return (
     <div style={{
       ...panelSurface,
@@ -145,7 +246,9 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
         onClick={() => setIsOpen(v => !v)}
         style={{
           width: '100%',
-          background: isPlaying
+          background: isExporting
+            ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+            : isPlaying
             ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
             : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
           padding: '12px 16px',
@@ -155,8 +258,8 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
         }}
       >
         <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className={isPlaying ? 'fa-solid fa-circle-play fa-beat' : 'fa-solid fa-film'} />
-          アニメーション {frames.length > 0 && (
+          <i className={isExporting ? 'fa-solid fa-circle-notch fa-spin' : isPlaying ? 'fa-solid fa-circle-play fa-beat' : 'fa-solid fa-film'} />
+          {isExporting ? '書き出し中...' : 'アニメーション'} {frames.length > 0 && !isExporting && (
             <span style={{
               fontSize: 11, background: 'rgba(255,255,255,0.25)',
               padding: '1px 8px', borderRadius: 999, fontWeight: 600,
@@ -201,22 +304,29 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
             }
           </div>
 
-          <Button variant='primary' fullWidth onClick={captureFrame} disabled={isPlaying}>
+          <Button variant='primary' fullWidth onClick={captureFrame} disabled={busy}>
             <i className='fa-solid fa-camera' /> 現在の配置を記録 (F{frames.length + 1})
           </Button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6 }}>
             <Button
               variant={isPlaying ? 'secondary' : 'success'}
               onClick={isPlaying ? stopAnimation : playAnimation}
-              disabled={!isPlaying && frames.length < 2}
+              disabled={isExporting || (!isPlaying && frames.length < 2)}
             >
               <i className={isPlaying ? 'fa-solid fa-stop' : 'fa-solid fa-play'} />
               {isPlaying ? '停止' : '再生'}
             </Button>
+            <Button
+              onClick={exportAnimation}
+              disabled={busy || frames.length < 2}
+              style={{ background: theme.color.warning, color: '#fff', border: 'none' }}
+            >
+              <i className='fa-solid fa-video' /> 書き出し
+            </Button>
             <IconButton
               onClick={() => setFrames([])}
-              disabled={isPlaying || frames.length === 0}
+              disabled={busy || frames.length === 0}
               title='クリア'
               style={{
                 width: 38, height: 38, borderRadius: theme.radius.md,
@@ -254,7 +364,7 @@ export const AnimationPanel = ({ board, mobileVisible }: Props) => {
               placeholder='名前をつけて保存'
               onKeyDown={e => e.key === 'Enter' && saveAnimation()}
             />
-            <Button onClick={saveAnimation} style={{ background: theme.color.warning, color: '#fff', border: 'none' }}>
+            <Button onClick={saveAnimation} disabled={busy} style={{ background: theme.color.warning, color: '#fff', border: 'none' }}>
               <i className='fa-regular fa-floppy-disk' /> 保存
             </Button>
           </div>

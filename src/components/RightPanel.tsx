@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import type { Board } from '../hooks/useBoard';
-import type { PlayerShape, TeamLabelShape } from '../types';
+import type { PlayerShape, TeamLabelShape, CourtShape } from '../types';
 import { FormationModal } from './FormationModal';
 import { theme, panelSurface } from '../ui/theme';
 import { Button, IconButton } from '../ui/Button';
 import { SectionLabel, Divider, FieldLabel, Input, Select } from '../ui/Panel';
+import { calcBasePositions } from '../utils/formationUtils';
+import { newId } from '../utils/id';
 
 const FONTS = [
   { label: '標準', value: 'system-ui, -apple-system, sans-serif' },
@@ -39,12 +41,22 @@ const ColorInput = ({ value, onChange }: { value: string; onChange: (v: string) 
   />
 );
 
+const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
+const SLOT_TO_ROLE: Record<string, string> = {
+  '1': 'S', '2': 'OH1', '3': 'MB2', '4': 'OP', '5': 'OH2', '6': 'MB1', 'L': 'L', 'l': 'L',
+};
+
+type CsvRow = { number: string; name: string; position: string; slot: string; color: string; nameColor: string; };
+
 export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, onAddPlayer }: Props) => {
   const [activeTab, setActiveTab] = useState<'A' | 'B'>('A');
   const [collapsed, setCollapsed] = useState(false);
   const [isFormationOpen, setIsFormationOpen] = useState(false);
   const isMobile = useIsMobile();
   const animRafRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [csvTeams, setCsvTeams] = useState<Record<string, CsvRow[]>>({});
+  const [selectedCsvTeam, setSelectedCsvTeam] = useState<string>('');
   const hidden = isMobile && !mobileVisible;
 
   const players = board.shapes.filter(s => s.type === 'player') as PlayerShape[];
@@ -61,6 +73,99 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
 
   const updatePlayer = (id: string, updates: Partial<PlayerShape>) => board.updateShape(id, updates);
   const updateShape = (id: string, updates: any) => board.updateShape(id, updates);
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length === 0) return;
+
+      const sep = lines[0].includes('\t') ? '\t' : ',';
+      const parse = (l: string) => l.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ''));
+
+      // チーム列（1列目がチーム名）かどうか判定
+      const firstCols = parse(lines[0]);
+      const hasTeamCol = firstCols.length >= 2 && isNaN(Number(firstCols[0])) && isNaN(Number(firstCols[1]));
+
+      const grouped: Record<string, CsvRow[]> = {};
+
+      if (hasTeamCol) {
+        // ヘッダー行をスキップ（2列目が数字でない = ヘッダー）
+        const startIdx = isNaN(Number(parse(lines[0])[1])) ? 1 : 0;
+        lines.slice(startIdx).forEach(line => {
+          const cols = parse(line);
+          const teamName = cols[0] || '未設定';
+          if (!grouped[teamName]) grouped[teamName] = [];
+          grouped[teamName].push({
+            number: cols[1] || '', name: cols[2] || '',
+            position: cols[3] || '', slot: cols[4] || '',
+            color: cols[5] || '', nameColor: cols[6] || '',
+          });
+        });
+      } else {
+        // チーム列なし（従来形式）
+        const startIdx = isNaN(Number(firstCols[0])) ? 1 : 0;
+        const teamName = file.name.replace(/\.[^.]+$/, '');
+        grouped[teamName] = lines.slice(startIdx).map(line => {
+          const cols = parse(line);
+          return {
+            number: cols[0] || '', name: cols[1] || '',
+            position: cols[2] || '', slot: cols[3] || '',
+            color: cols[4] || '', nameColor: cols[5] || '',
+          };
+        });
+      }
+
+      setCsvTeams(grouped);
+      setSelectedCsvTeam(Object.keys(grouped)[0] || '');
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
+  const doImport = (asTeam: 'A' | 'B') => {
+    const rows = csvTeams[selectedCsvTeam];
+    if (!rows || rows.length === 0) return;
+
+    const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
+    const posMap = court ? calcBasePositions(court.x, court.y, court, asTeam) : {};
+    const fallbackColor = asTeam === 'A' ? '#ef4444' : '#3b82f6';
+    const maxZ = board.shapes.reduce((m, s) => Math.max(m, s.zIndex), 0);
+
+    const existingIds = board.shapes
+      .filter(s => s.type === 'player' && (s as PlayerShape).team === asTeam)
+      .map(s => s.id);
+
+    const newPlayers: PlayerShape[] = rows.map((row, idx) => {
+      // スロット指定があればそれを使い、なければ順番通りに配置（従来の挙動）
+      const role = row.slot ? (SLOT_TO_ROLE[row.slot] ?? '') : (ROLES[idx] ?? '');
+      const isLibero = row.position === 'L' || role === 'L';
+      const pos = role && posMap[role] ? posMap[role] : { x: 0, y: 0 };
+      // スロット空白は非表示、それ以外は従来通り（チームAは表示、チームBは非表示）
+      const onCourt = row.slot ? !!role : idx < ROLES.length;
+      const isVisible = onCourt && asTeam === 'A';
+      const color = row.color || (isLibero ? '#1f2937' : fallbackColor);
+      const nameColor = (row.nameColor === 'white' || row.nameColor === 'black')
+        ? row.nameColor
+        : isLibero ? 'white' : 'black';
+      return {
+        id: newId(), type: 'player' as const, team: asTeam,
+        x: pos.x, y: pos.y, zIndex: maxZ + idx + 1,
+        number: row.number, name: row.name,
+        color, position: row.position,
+        namePosition: asTeam === 'A' ? 'bottom' : 'top',
+        isVisible, isFree: false, nameColor,
+      } as PlayerShape;
+    });
+
+    const otherShapes = board.shapes.filter(s => !existingIds.includes(s.id));
+    (board as any).setState({ shapes: [...otherShapes, ...newPlayers], selectedIds: [], camera: board.camera });
+    setCsvTeams({});
+    setSelectedCsvTeam('');
+  };
 
   const handleRotate = (direction: 'gain' | 'back') => {
     const ROTATION_ORDER = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1'];
@@ -193,6 +298,21 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
             <i className={labelShape?.isVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'} />
           </IconButton>
         </div>
+      </div>
+
+      <Divider />
+
+      <div>
+        <input
+          ref={fileInputRef}
+          type='file'
+          accept='.csv,.tsv,.txt'
+          style={{ display: 'none' }}
+          onChange={handleImportCSV}
+        />
+        <Button fullWidth onClick={() => fileInputRef.current?.click()}>
+          <i className='fa-solid fa-file-csv' /> CSVから名簿を読み込む
+        </Button>
       </div>
 
       <Divider />
@@ -529,6 +649,73 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       </div>
 
       <FormationModal isOpen={isFormationOpen} onClose={() => setIsFormationOpen(false)} activeTab={activeTab} board={board} />
+
+      {Object.keys(csvTeams).length > 0 && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => { setCsvTeams({}); setSelectedCsvTeam(''); }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.color.surface, borderRadius: theme.radius.xl,
+              padding: 20, width: 300, display: 'flex', flexDirection: 'column', gap: 12,
+              boxShadow: theme.shadow.lg,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 14, color: theme.color.text }}>
+              <i className='fa-solid fa-file-csv' style={{ marginRight: 8, color: theme.color.accent }} />
+              チームを選択
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
+              {Object.keys(csvTeams).map(name => (
+                <button
+                  key={name}
+                  onClick={() => setSelectedCsvTeam(name)}
+                  style={{
+                    textAlign: 'left', padding: '8px 12px',
+                    border: `1px solid ${selectedCsvTeam === name ? theme.color.accent : theme.color.border}`,
+                    background: selectedCsvTeam === name ? theme.color.accentSoft : theme.color.surfaceSolid,
+                    color: theme.color.text, borderRadius: theme.radius.md,
+                    cursor: 'pointer', fontSize: 13, fontWeight: selectedCsvTeam === name ? 600 : 400,
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}
+                >
+                  <span>{name}</span>
+                  <span style={{ fontSize: 11, color: theme.color.textMuted }}>{csvTeams[name].length}人</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: theme.color.textMuted }}>どちらのチームとして読み込みますか？</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => doImport('A')}
+                disabled={!selectedCsvTeam}
+                style={{
+                  flex: 1, padding: '10px 0', border: 'none',
+                  background: theme.color.teamA, color: '#fff',
+                  borderRadius: theme.radius.md, fontWeight: 700, fontSize: 13,
+                  cursor: selectedCsvTeam ? 'pointer' : 'not-allowed', opacity: selectedCsvTeam ? 1 : 0.5,
+                }}
+              >チームA</button>
+              <button
+                onClick={() => doImport('B')}
+                disabled={!selectedCsvTeam}
+                style={{
+                  flex: 1, padding: '10px 0', border: 'none',
+                  background: theme.color.teamB, color: '#fff',
+                  borderRadius: theme.radius.md, fontWeight: 700, fontSize: 13,
+                  cursor: selectedCsvTeam ? 'pointer' : 'not-allowed', opacity: selectedCsvTeam ? 1 : 0.5,
+                }}
+              >チームB</button>
+            </div>
+            <button
+              onClick={() => { setCsvTeams({}); setSelectedCsvTeam(''); }}
+              style={{ background: 'none', border: 'none', color: theme.color.textMuted, cursor: 'pointer', fontSize: 12 }}
+            >キャンセル</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
