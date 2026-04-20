@@ -489,31 +489,27 @@ export default function App() {
     const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
     if (!court) return;
 
-    const teamAPlayers = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === 'A') as PlayerShape[];
-    const teamBPlayers = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === 'B') as PlayerShape[];
-
-    const posA = calcBasePositions(court.x, court.y, court, 'A');
-    const posB = calcBasePositions(court.x, court.y, court, 'B');
-
     const updates: { id: string; startX: number; startY: number; endX: number; endY: number }[] = [];
 
-    const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
+    (['A', 'B'] as const).forEach(team => {
+      const posMap = calcBasePositions(court.x, court.y, court, team);
+      const players = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === team) as PlayerShape[];
 
-    // Team A mapping
-    const sortedA = [...teamAPlayers].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-    ROLES.forEach((role, idx) => {
-      const player = sortedA[idx];
-      if (player && posA[role]) {
-        updates.push({ id: player.id, startX: player.x, startY: player.y, endX: posA[role].x, endY: posA[role].y });
-      }
-    });
-
-    // Team B mapping
-    const sortedB = [...teamBPlayers].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-    ROLES.forEach((role, idx) => {
-      const player = sortedB[idx];
-      if (player && posB[role]) {
-        updates.push({ id: player.id, startX: player.x, startY: player.y, endX: posB[role].x, endY: posB[role].y });
+      const slotPlayers = players.filter(p => p.slot);
+      if (slotPlayers.length > 0) {
+        // CSVスロットベース
+        slotPlayers.forEach(p => {
+          const pos = p.slot ? posMap[p.slot] : undefined;
+          if (pos) updates.push({ id: p.id, startX: p.x, startY: p.y, endX: pos.x, endY: pos.y });
+        });
+      } else {
+        // デフォルト: 背番号順
+        const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
+        const sorted = [...players].sort((a, b) => parseInt(a.number) - parseInt(b.number));
+        ROLES.forEach((role, idx) => {
+          const player = sorted[idx];
+          if (player && posMap[role]) updates.push({ id: player.id, startX: player.x, startY: player.y, endX: posMap[role].x, endY: posMap[role].y });
+        });
       }
     });
 
@@ -544,39 +540,10 @@ export default function App() {
   };
 
   const handleResetAll = () => {
-    const slotPlayers = board.shapes.filter(
-      s => s.type === 'player' && (s as PlayerShape).slot
-    ) as PlayerShape[];
-
-    if (slotPlayers.length > 0) {
-      // CSV読み込み済み: スロットベースで初期位置にアニメーション
-      const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
-      if (!court) return;
-      const updates: { id: string; sx: number; sy: number; ex: number; ey: number }[] = [];
-      (['A', 'B'] as const).forEach(team => {
-        const posMap = calcBasePositions(court.x, court.y, court, team);
-        slotPlayers.filter(p => p.team === team).forEach(p => {
-          const pos = p.slot ? posMap[p.slot] : undefined;
-          if (pos) updates.push({ id: p.id, sx: p.x, sy: p.y, ex: pos.x, ey: pos.y });
-        });
-      });
-      const duration = 500; const t0 = Date.now();
-      const step = () => {
-        const prog = Math.min((Date.now() - t0) / duration, 1);
-        const ease = prog * (2 - prog);
-        board.updateShapes(updates.map(u => ({
-          id: u.id,
-          changes: { x: u.sx + (u.ex - u.sx) * ease, y: u.sy + (u.ey - u.sy) * ease },
-        })));
-        if (prog < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    } else {
-      if (!confirm('全てをデフォルトに戻しますか？\n（保存済みプロジェクトは維持されます）')) return;
-      const shapes = buildInitialShapes();
-      const camera = calcInitialCamera();
-      board.setState({ shapes, selectedIds: [], camera });
-    }
+    if (!confirm('全てを白紙に戻しますか？\n（保存済みプロジェクトは維持されます）')) return;
+    const shapes = buildInitialShapes();
+    const camera = calcInitialCamera();
+    board.setState({ shapes, selectedIds: [], camera });
   };
 
   const handleExport = () => {
