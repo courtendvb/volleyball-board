@@ -26,10 +26,8 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
 
   const W = labelWidth ?? 300;
   const text = name || 'Team';
-  const textLen = Math.max(text.length, 1);
-  // W * 0.14 → 42px at default W=300, scales with width; capped by per-char fit for long text
-  const fontSize = Math.max(16, Math.floor(Math.min(W * 0.14, W * 0.85 / textLen / 0.7)));
-  const H = Math.max(48, Math.min(80, Math.round(fontSize * 1.5)));
+  const fontSize = 21; // 70% of player name fontSize (30px)
+  const H = 38;
 
   const c = color || '#ef4444';
   const outlineColor = getLuminance(c) > 0.5 ? '#111827' : 'white';
