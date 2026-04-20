@@ -8,6 +8,7 @@ import { Button, IconButton } from '../ui/Button';
 import { SectionLabel, Divider, FieldLabel, Input, Select } from '../ui/Panel';
 import { calcBasePositions } from '../utils/formationUtils';
 import { newId } from '../utils/id';
+import { builtinTeams } from '../data/builtinTeams';
 
 const FONTS = [
   { label: '標準', value: 'system-ui, -apple-system, sans-serif' },
@@ -57,6 +58,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [csvTeams, setCsvTeams] = useState<Record<string, CsvRow[]>>({});
   const [selectedCsvTeam, setSelectedCsvTeam] = useState<string>('');
+  const [showBuiltinPicker, setShowBuiltinPicker] = useState(false);
   const hidden = isMobile && !mobileVisible;
 
   const players = board.shapes.filter(s => s.type === 'player') as PlayerShape[];
@@ -74,56 +76,52 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
   const updatePlayer = (id: string, updates: Partial<PlayerShape>) => board.updateShape(id, updates);
   const updateShape = (id: string, updates: any) => board.updateShape(id, updates);
 
+  const parseCsvIntoTeams = (text: string, fallbackName: string): Record<string, CsvRow[]> => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return {};
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const parse = (l: string) => l.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ''));
+    const firstCols = parse(lines[0]);
+    const hasTeamCol = firstCols.length >= 2 && isNaN(Number(firstCols[0])) && isNaN(Number(firstCols[1]));
+    const grouped: Record<string, CsvRow[]> = {};
+    if (hasTeamCol) {
+      const startIdx = isNaN(Number(parse(lines[0])[1])) ? 1 : 0;
+      lines.slice(startIdx).forEach(line => {
+        const cols = parse(line);
+        const teamName = cols[0] || '未設定';
+        if (!grouped[teamName]) grouped[teamName] = [];
+        grouped[teamName].push({ number: cols[1] || '', name: cols[2] || '', position: cols[3] || '', slot: cols[4] || '', color: cols[5] || '', nameColor: cols[6] || '' });
+      });
+    } else {
+      const startIdx = isNaN(Number(firstCols[0])) ? 1 : 0;
+      grouped[fallbackName] = lines.slice(startIdx).map(line => {
+        const cols = parse(line);
+        return { number: cols[0] || '', name: cols[1] || '', position: cols[2] || '', slot: cols[3] || '', color: cols[4] || '', nameColor: cols[5] || '' };
+      });
+    }
+    return grouped;
+  };
+
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
       const text = ev.target?.result as string;
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      if (lines.length === 0) return;
-
-      const sep = lines[0].includes('\t') ? '\t' : ',';
-      const parse = (l: string) => l.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ''));
-
-      // チーム列（1列目がチーム名）かどうか判定
-      const firstCols = parse(lines[0]);
-      const hasTeamCol = firstCols.length >= 2 && isNaN(Number(firstCols[0])) && isNaN(Number(firstCols[1]));
-
-      const grouped: Record<string, CsvRow[]> = {};
-
-      if (hasTeamCol) {
-        // ヘッダー行をスキップ（2列目が数字でない = ヘッダー）
-        const startIdx = isNaN(Number(parse(lines[0])[1])) ? 1 : 0;
-        lines.slice(startIdx).forEach(line => {
-          const cols = parse(line);
-          const teamName = cols[0] || '未設定';
-          if (!grouped[teamName]) grouped[teamName] = [];
-          grouped[teamName].push({
-            number: cols[1] || '', name: cols[2] || '',
-            position: cols[3] || '', slot: cols[4] || '',
-            color: cols[5] || '', nameColor: cols[6] || '',
-          });
-        });
-      } else {
-        // チーム列なし（従来形式）
-        const startIdx = isNaN(Number(firstCols[0])) ? 1 : 0;
-        const teamName = file.name.replace(/\.[^.]+$/, '');
-        grouped[teamName] = lines.slice(startIdx).map(line => {
-          const cols = parse(line);
-          return {
-            number: cols[0] || '', name: cols[1] || '',
-            position: cols[2] || '', slot: cols[3] || '',
-            color: cols[4] || '', nameColor: cols[5] || '',
-          };
-        });
-      }
-
+      const grouped = parseCsvIntoTeams(text, file.name.replace(/\.[^.]+$/, ''));
       setCsvTeams(grouped);
       setSelectedCsvTeam(Object.keys(grouped)[0] || '');
     };
     reader.readAsText(file, 'UTF-8');
     e.target.value = '';
+  };
+
+  const handleSelectBuiltin = (name: string) => {
+    const text = builtinTeams[name];
+    const grouped = parseCsvIntoTeams(text, name);
+    setShowBuiltinPicker(false);
+    setCsvTeams(grouped);
+    setSelectedCsvTeam(Object.keys(grouped)[0] || '');
   };
 
   const doImport = (asTeam: 'A' | 'B') => {
@@ -302,7 +300,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
 
       <Divider />
 
-      <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <input
           ref={fileInputRef}
           type='file'
@@ -313,6 +311,11 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         <Button fullWidth onClick={() => fileInputRef.current?.click()}>
           <i className='fa-solid fa-file-csv' /> CSVから名簿を読み込む
         </Button>
+        {Object.keys(builtinTeams).length > 0 && (
+          <Button fullWidth onClick={() => setShowBuiltinPicker(true)}>
+            <i className='fa-solid fa-users' /> 内蔵プリセットから読み込む
+          </Button>
+        )}
       </div>
 
       <Divider />
@@ -649,6 +652,48 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       </div>
 
       <FormationModal isOpen={isFormationOpen} onClose={() => setIsFormationOpen(false)} activeTab={activeTab} board={board} />
+
+      {showBuiltinPicker && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setShowBuiltinPicker(false)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.color.surface, borderRadius: theme.radius.xl,
+              padding: 20, width: 300, display: 'flex', flexDirection: 'column', gap: 12,
+              boxShadow: theme.shadow.lg,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 14, color: theme.color.text }}>
+              <i className='fa-solid fa-users' style={{ marginRight: 8, color: theme.color.accent }} />
+              内蔵プリセット
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 300, overflowY: 'auto' }}>
+              {Object.keys(builtinTeams).map(name => (
+                <button
+                  key={name}
+                  onClick={() => handleSelectBuiltin(name)}
+                  style={{
+                    textAlign: 'left', padding: '10px 14px',
+                    border: `1px solid ${theme.color.border}`,
+                    background: theme.color.surfaceSolid,
+                    color: theme.color.text, borderRadius: theme.radius.md,
+                    cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowBuiltinPicker(false)}
+              style={{ background: 'none', border: 'none', color: theme.color.textMuted, cursor: 'pointer', fontSize: 12 }}
+            >キャンセル</button>
+          </div>
+        </div>
+      )}
 
       {Object.keys(csvTeams).length > 0 && (
         <div style={{
