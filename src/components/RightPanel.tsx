@@ -106,14 +106,14 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
     const grouped = parseCsvIntoTeams(text, name);
     const keys = Object.keys(grouped);
     if (keys.length === 1) {
-      doImportDirect(grouped[keys[0]], activeTab);
+      doImportDirect(grouped[keys[0]], activeTab, keys[0]);
     } else {
       setCsvPickTeams(grouped);
       setSelectedCsvTeam(keys[0] || '');
     }
   };
 
-  const doImportDirect = (rows: CsvRow[], asTeam: 'A' | 'B') => {
+  const doImportDirect = (rows: CsvRow[], asTeam: 'A' | 'B', teamName?: string) => {
     if (!rows || rows.length === 0) return;
     const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
     const posMap = court ? calcBasePositions(court.x, court.y, court, asTeam) : {};
@@ -128,8 +128,8 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       const pos = role && posMap[role] ? posMap[role] : { x: 0, y: 0 };
       const isVisible = !!row.slot && !!role && asTeam === 'A';
       const color = row.color || (isLibero ? '#1f2937' : fallbackColor);
-      const nameColor = (row.nameColor === 'white' || row.nameColor === 'black')
-        ? row.nameColor : isLibero ? 'white' : 'black';
+      const nameColor: 'white' | 'black' | undefined = (row.nameColor === 'white' || row.nameColor === 'black')
+        ? row.nameColor : undefined;
       return {
         id: newId(), type: 'player' as const, team: asTeam,
         x: pos.x, y: pos.y, zIndex: maxZ + idx + 1,
@@ -139,8 +139,18 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         isVisible, isFree: false, nameColor,
       } as PlayerShape;
     });
+    const colorCount: Record<string, number> = {};
+    newPlayers.forEach(p => { colorCount[p.color] = (colorCount[p.color] ?? 0) + 1; });
+    const dominantColor = Object.entries(colorCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+
     const otherShapes = board.shapes.filter(s => !existingIds.includes(s.id));
-    (board as any).setState({ shapes: [...otherShapes, ...newPlayers], selectedIds: [], camera: board.camera });
+    const updatedShapes = [...otherShapes, ...newPlayers];
+    const label = updatedShapes.find(s => s.type === 'team-label' && (s as TeamLabelShape).team === asTeam) as TeamLabelShape | undefined;
+    if (label) {
+      if (teamName) (label as any).name = teamName;
+      if (dominantColor) (label as any).color = dominantColor;
+    }
+    (board as any).setState({ shapes: updatedShapes, selectedIds: [], camera: board.camera });
     setCsvPickTeams({});
     setSelectedCsvTeam('');
   };
@@ -498,19 +508,6 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                   </Button>
                 </div>
               </div>
-              <div>
-                <FieldLabel>名前の色</FieldLabel>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <Button fullWidth active={selectedPlayer.nameColor === 'black' || !selectedPlayer.nameColor}
-                    onClick={() => updatePlayer(selectedPlayer.id, { nameColor: 'black' })}>
-                    黒
-                  </Button>
-                  <Button fullWidth active={selectedPlayer.nameColor === 'white'}
-                    onClick={() => updatePlayer(selectedPlayer.id, { nameColor: 'white' })}>
-                    白
-                  </Button>
-                </div>
-              </div>
               <div style={{ display: 'flex', gap: 4 }}>
                 <Button
                   fullWidth
@@ -668,7 +665,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
               ))}
             </div>
             <button
-              onClick={() => doImportDirect(csvPickTeams[selectedCsvTeam], activeTab)}
+              onClick={() => doImportDirect(csvPickTeams[selectedCsvTeam], activeTab, selectedCsvTeam)}
               disabled={!selectedCsvTeam}
               style={{
                 padding: '10px 0', border: 'none',

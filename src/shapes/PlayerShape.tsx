@@ -33,7 +33,7 @@ interface Props {
 
 export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'system-ui, -apple-system, sans-serif', isSelectTool = true }: Props) => {
   const { id, x, y, color, number, name, namePosition, position, isVisible, nameColor } = shape;
-  const textColor = getContrastColor(color || '#ef4444');
+  const textColor = nameColor === 'white' ? 'white' : nameColor === 'black' ? '#111827' : getContrastColor(color || '#ef4444');
   const numLen = number.length;
   const isHandwriting = fontFamily.includes('Zen Maru');
   const numFontSize = (numLen <= 1 ? 52 : numLen === 2 ? 49 : 30) * (isHandwriting ? 1.15 : 1);
@@ -148,9 +148,9 @@ export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'sy
           fontSize={30}
           fontStyle='bold'
           fontFamily={fontFamily}
-          fill={nameColor === 'white' ? 'white' : '#111827'}
+          fill='#111827'
           align='center'
-          shadowColor={nameColor === 'white' ? 'black' : 'white'}
+          shadowColor='white'
           shadowBlur={4}
           shadowOpacity={1}
           listening={false}
