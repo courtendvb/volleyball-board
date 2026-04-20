@@ -13,6 +13,7 @@ import { builtinTeams } from '../data/builtinTeams';
 const FONTS = [
   { label: '標準', value: 'system-ui, -apple-system, sans-serif' },
   { label: '手書き', value: "'Zen Maru Gothic', sans-serif" },
+  { label: 'ふい字', value: "'Fuijifont', cursive" },
   { label: '丸ゴシック', value: "'M PLUS Rounded 1c', sans-serif" },
   { label: 'Oswald', value: "'Oswald', sans-serif" },
 ];
@@ -135,7 +136,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         x: pos.x, y: pos.y, zIndex: maxZ + idx + 1,
         number: row.number, name: row.name,
         color, position: row.position,
-        namePosition: asTeam === 'A' ? 'bottom' : 'top',
+        namePosition: 'bottom',
         isVisible, isFree: false, nameColor,
         slot: role || undefined,
       } as PlayerShape;

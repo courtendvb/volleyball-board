@@ -70,8 +70,8 @@ export const buildInitialShapes = (): AnyShape[] => {
       y: posB[role]?.y ?? COURT_Y + COURT_H / 2 - PR,
       zIndex: 20 + idx,
       number: String(idx + 1), name: '', color: role === 'L' ? '#1f2937' : '#3b82f6',
-      position: role, namePosition: 'top',
-      isVisible: false, isFree: false, nameColor: role === 'L' ? 'white' : 'black',
+      position: role, namePosition: 'bottom',
+      isVisible: false, isFree: false,
     };
     shapes.push(pB);
   });

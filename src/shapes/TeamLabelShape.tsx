@@ -27,7 +27,7 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
   const W = 220;
   const H = 60;
   const len = (name || 'Team').length;
-  const fontSize = len <= 6 ? 28 : len <= 10 ? 22 : len <= 14 ? 17 : 13;
+  const fontSize = len <= 6 ? 42 : len <= 10 ? 33 : len <= 14 ? 25 : 20;
 
   const c = color || '#ef4444';
   const outlineColor = getLuminance(c) > 0.5 ? '#111827' : 'white';

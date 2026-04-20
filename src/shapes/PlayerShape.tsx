@@ -6,22 +6,6 @@ import type { Board } from '../hooks/useBoard';
 const SIZE = 70;
 const RADIUS = SIZE / 2;
 
-const getLuminance = (hex: string) => {
-  let c = hex.replace('#', '');
-  if (c.length === 3) {
-    c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
-  } else if (c.length !== 6) {
-    if (c === 'white' || c === 'transparent') return 1;
-    return 0;
-  }
-  const r = parseInt(c.slice(0, 2), 16) || 0;
-  const g = parseInt(c.slice(2, 4), 16) || 0;
-  const b = parseInt(c.slice(4, 6), 16) || 0;
-  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-};
-
-const getContrastColor = (hex: string) =>
-  getLuminance(hex) > 0.45 ? '#111827' : 'white';
 
 interface Props {
   shape: PlayerShape;
@@ -33,24 +17,11 @@ interface Props {
 
 export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'system-ui, -apple-system, sans-serif', isSelectTool = true }: Props) => {
   const { id, x, y, color, number, name, namePosition, position, isVisible, nameColor } = shape;
-  const textColor = nameColor === 'white' ? 'white' : nameColor === 'black' ? '#111827' : getContrastColor(color || '#ef4444');
+  const textColor = nameColor === 'black' ? '#111827' : 'white';
   const numLen = number.length;
-  const isHandwriting = fontFamily.includes('Zen Maru');
-  const numFontSize = (numLen <= 1 ? 52 : numLen === 2 ? 49 : 30) * (isHandwriting ? 1.15 : 1);
-
-  // フォントごとの表示位置微調整（ Konvaはフォントによって垂直方向の中心がずれるため）
-  let offsetX = 0;
-  let offsetY = -4; // デフォルト（標準/system-ui）
-
-  if (fontFamily.includes('Zen Maru')) {
-    offsetY = -7;
-    offsetX = 1;
-  } else if (fontFamily.includes('M PLUS')) {
-    offsetY = -3;
-  } else if (fontFamily.includes('Oswald')) {
-    offsetY = -6;
-    offsetX = 3;
-  }
+  const numFontSize = numLen <= 1 ? 52 : numLen === 2 ? 49 : 30;
+  const offsetX = 0;
+  const offsetY = 0;
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
