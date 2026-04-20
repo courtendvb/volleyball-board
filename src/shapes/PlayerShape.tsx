@@ -21,7 +21,11 @@ export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'sy
   const numLen = number.length;
   const numFontSize = numLen <= 1 ? 52 : numLen === 2 ? 49 : 30;
   const offsetX = 0;
-  const offsetY = 0;
+  let offsetY = -4;
+  if (fontFamily.includes('Zen Maru')) offsetY = -7;
+  else if (fontFamily.includes('M PLUS')) offsetY = -3;
+  else if (fontFamily.includes('Oswald')) offsetY = -6;
+  else if (fontFamily.includes('Fuijifont')) offsetY = -5;
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });

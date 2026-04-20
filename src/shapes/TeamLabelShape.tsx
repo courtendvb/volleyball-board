@@ -20,11 +20,11 @@ const getLuminance = (hex: string) => {
 };
 
 export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 'system-ui, -apple-system, sans-serif' }: Props) => {
-  const { id, x, y, name, color, isVisible } = shape;
+  const { id, x, y, name, color, isVisible, labelWidth } = shape;
 
   if (!isVisible) return null;
 
-  const W = 220;
+  const W = labelWidth ?? 220;
   const H = 60;
   const len = (name || 'Team').length;
   const fontSize = len <= 6 ? 42 : len <= 10 ? 33 : len <= 14 ? 25 : 20;
@@ -52,8 +52,9 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
 
   return (
     <Group x={x} y={y} draggable onDragEnd={handleDragEnd} onClick={handleClick} onTap={handleTap}>
-      {/* タッチ・クリックのヒット領域（不可視） */}
+      {/* ヒット領域 */}
       <Rect x={0} y={0} width={W} height={H} fill='transparent' />
+
       {isSelected && (
         <Rect
           x={-4} y={-4}
@@ -63,6 +64,7 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
           listening={false}
         />
       )}
+
       <Text
         x={0} y={0}
         width={W} height={H}
@@ -78,6 +80,31 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
         verticalAlign='middle'
         listening={false}
       />
+
+      {/* 横幅リサイズハンドル（選択時のみ） */}
+      {isSelected && (
+        <Rect
+          x={W - 6}
+          y={H / 2 - 14}
+          width={12}
+          height={28}
+          fill='#3b82f6'
+          cornerRadius={4}
+          draggable
+          onDragMove={e => {
+            e.target.y(H / 2 - 14);
+            const newW = Math.max(80, e.target.x() + 6);
+            board.updateShape(id, { labelWidth: newW });
+          }}
+          onDragEnd={e => {
+            const newW = Math.max(80, e.target.x() + 6);
+            board.updateShape(id, { labelWidth: newW });
+            e.target.position({ x: newW - 6, y: H / 2 - 14 });
+          }}
+          onClick={e => e.cancelBubble = true}
+          onTap={e => e.cancelBubble = true}
+        />
+      )}
     </Group>
   );
 };

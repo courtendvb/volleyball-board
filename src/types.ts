@@ -44,6 +44,7 @@ export interface TeamLabelShape extends BaseShape {
   name: string;
   color: string;
   isVisible: boolean;
+  labelWidth?: number;
 }
 
 export interface ArrowShape extends BaseShape {

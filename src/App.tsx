@@ -544,10 +544,39 @@ export default function App() {
   };
 
   const handleResetAll = () => {
-    if (!confirm('全てをデフォルトに戻しますか？\n（保存済みプロジェクトは維持されます）')) return;
-    const shapes = buildInitialShapes();
-    const camera = calcInitialCamera();
-    board.setState({ shapes, selectedIds: [], camera });
+    const slotPlayers = board.shapes.filter(
+      s => s.type === 'player' && (s as PlayerShape).slot
+    ) as PlayerShape[];
+
+    if (slotPlayers.length > 0) {
+      // CSV読み込み済み: スロットベースで初期位置にアニメーション
+      const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
+      if (!court) return;
+      const updates: { id: string; sx: number; sy: number; ex: number; ey: number }[] = [];
+      (['A', 'B'] as const).forEach(team => {
+        const posMap = calcBasePositions(court.x, court.y, court, team);
+        slotPlayers.filter(p => p.team === team).forEach(p => {
+          const pos = p.slot ? posMap[p.slot] : undefined;
+          if (pos) updates.push({ id: p.id, sx: p.x, sy: p.y, ex: pos.x, ey: pos.y });
+        });
+      });
+      const duration = 500; const t0 = Date.now();
+      const step = () => {
+        const prog = Math.min((Date.now() - t0) / duration, 1);
+        const ease = prog * (2 - prog);
+        board.updateShapes(updates.map(u => ({
+          id: u.id,
+          changes: { x: u.sx + (u.ex - u.sx) * ease, y: u.sy + (u.ey - u.sy) * ease },
+        })));
+        if (prog < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    } else {
+      if (!confirm('全てをデフォルトに戻しますか？\n（保存済みプロジェクトは維持されます）')) return;
+      const shapes = buildInitialShapes();
+      const camera = calcInitialCamera();
+      board.setState({ shapes, selectedIds: [], camera });
+    }
   };
 
   const handleExport = () => {
