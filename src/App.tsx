@@ -84,14 +84,18 @@ export const buildInitialShapes = (): AnyShape[] => {
   };
   shapes.push(ball);
 
+  const DEF_LABEL_W = 300;
+  const DEF_LABEL_H = 38;
   const labelA: TeamLabelShape = {
     id: newId(), type: 'team-label', team: 'A',
-    x: COURT_X + COURT_W / 2 - 110, y: COURT_Y + COURT_H * 3 / 4 - 30,
+    x: COURT_X + COURT_W / 2 - DEF_LABEL_W / 2,
+    y: COURT_Y + COURT_H * 3 / 4 - DEF_LABEL_H / 2,
     zIndex: 5, name: 'チームA', color: '#ef4444', isVisible: true,
   };
   const labelB: TeamLabelShape = {
     id: newId(), type: 'team-label', team: 'B',
-    x: COURT_X + COURT_W / 2 - 110, y: COURT_Y + COURT_H / 4 - 30,
+    x: COURT_X + COURT_W / 2 - DEF_LABEL_W / 2,
+    y: COURT_Y + COURT_H / 4 - DEF_LABEL_H / 2,
     zIndex: 5, name: 'チームB', color: '#3b82f6', isVisible: false,
   };
   shapes.push(labelA, labelB);

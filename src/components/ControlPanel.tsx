@@ -39,8 +39,8 @@ export const ControlPanel = ({
     const newCourt = { ...court, ...updates } as CourtShape;
     const isHoriz = newCourt.orientation === 'horizontal';
     const { flipped, courtType } = newCourt;
-    const LABEL_W = 220;
-    const LABEL_H = 60;
+    const LABEL_W = 300;
+    const LABEL_H = 38;
     const PHYS_X = 0;
     const PHYS_DIST = 234;
 
