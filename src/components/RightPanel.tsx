@@ -55,10 +55,8 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
   const [isFormationOpen, setIsFormationOpen] = useState(false);
   const isMobile = useIsMobile();
   const animRafRef = useRef<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [csvTeams, setCsvTeams] = useState<Record<string, CsvRow[]>>({});
+  const [csvPickTeams, setCsvPickTeams] = useState<Record<string, CsvRow[]>>({});
   const [selectedCsvTeam, setSelectedCsvTeam] = useState<string>('');
-  const [showBuiltinPicker, setShowBuiltinPicker] = useState(false);
   const hidden = isMobile && !mobileVisible;
 
   const players = board.shapes.filter(s => s.type === 'player') as PlayerShape[];
@@ -102,53 +100,36 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
     return grouped;
   };
 
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const text = ev.target?.result as string;
-      const grouped = parseCsvIntoTeams(text, file.name.replace(/\.[^.]+$/, ''));
-      setCsvTeams(grouped);
-      setSelectedCsvTeam(Object.keys(grouped)[0] || '');
-    };
-    reader.readAsText(file, 'UTF-8');
-    e.target.value = '';
-  };
-
-  const handleSelectBuiltin = (name: string) => {
+  const handleSelectPreset = (name: string) => {
+    if (!name) return;
     const text = builtinTeams[name];
     const grouped = parseCsvIntoTeams(text, name);
-    setShowBuiltinPicker(false);
-    setCsvTeams(grouped);
-    setSelectedCsvTeam(Object.keys(grouped)[0] || '');
+    const keys = Object.keys(grouped);
+    if (keys.length === 1) {
+      doImportDirect(grouped[keys[0]], activeTab);
+    } else {
+      setCsvPickTeams(grouped);
+      setSelectedCsvTeam(keys[0] || '');
+    }
   };
 
-  const doImport = (asTeam: 'A' | 'B') => {
-    const rows = csvTeams[selectedCsvTeam];
+  const doImportDirect = (rows: CsvRow[], asTeam: 'A' | 'B') => {
     if (!rows || rows.length === 0) return;
-
     const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
     const posMap = court ? calcBasePositions(court.x, court.y, court, asTeam) : {};
     const fallbackColor = asTeam === 'A' ? '#ef4444' : '#3b82f6';
     const maxZ = board.shapes.reduce((m, s) => Math.max(m, s.zIndex), 0);
-
     const existingIds = board.shapes
       .filter(s => s.type === 'player' && (s as PlayerShape).team === asTeam)
       .map(s => s.id);
-
     const newPlayers: PlayerShape[] = rows.map((row, idx) => {
-      // スロット指定があればそれを使い、なければ順番通りに配置（従来の挙動）
       const role = row.slot ? (SLOT_TO_ROLE[row.slot] ?? '') : (ROLES[idx] ?? '');
       const isLibero = row.position === 'L' || role === 'L';
       const pos = role && posMap[role] ? posMap[role] : { x: 0, y: 0 };
-      // スロット空白は非表示、それ以外は従来通り（チームAは表示、チームBは非表示）
-      const onCourt = row.slot ? !!role : idx < ROLES.length;
-      const isVisible = onCourt && asTeam === 'A';
+      const isVisible = !!row.slot && !!role && asTeam === 'A';
       const color = row.color || (isLibero ? '#1f2937' : fallbackColor);
       const nameColor = (row.nameColor === 'white' || row.nameColor === 'black')
-        ? row.nameColor
-        : isLibero ? 'white' : 'black';
+        ? row.nameColor : isLibero ? 'white' : 'black';
       return {
         id: newId(), type: 'player' as const, team: asTeam,
         x: pos.x, y: pos.y, zIndex: maxZ + idx + 1,
@@ -158,10 +139,9 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         isVisible, isFree: false, nameColor,
       } as PlayerShape;
     });
-
     const otherShapes = board.shapes.filter(s => !existingIds.includes(s.id));
     (board as any).setState({ shapes: [...otherShapes, ...newPlayers], selectedIds: [], camera: board.camera });
-    setCsvTeams({});
+    setCsvPickTeams({});
     setSelectedCsvTeam('');
   };
 
@@ -296,25 +276,23 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
             <i className={labelShape?.isVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'} />
           </IconButton>
         </div>
-      </div>
-
-      <Divider />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <input
-          ref={fileInputRef}
-          type='file'
-          accept='.csv,.tsv,.txt'
-          style={{ display: 'none' }}
-          onChange={handleImportCSV}
-        />
-        <Button fullWidth onClick={() => fileInputRef.current?.click()}>
-          <i className='fa-solid fa-file-csv' /> CSVから名簿を読み込む
-        </Button>
         {Object.keys(builtinTeams).length > 0 && (
-          <Button fullWidth onClick={() => setShowBuiltinPicker(true)}>
-            <i className='fa-solid fa-users' /> 内蔵プリセットから読み込む
-          </Button>
+          <select
+            value=''
+            onChange={e => handleSelectPreset(e.target.value)}
+            style={{
+              marginTop: 6, width: '100%', fontSize: 12,
+              padding: '6px 8px', borderRadius: theme.radius.md,
+              border: `1px solid ${theme.color.border}`,
+              background: theme.color.surfaceSolid, color: theme.color.text,
+              cursor: 'pointer',
+            }}
+          >
+            <option value=''>プリセットから読み込む...</option>
+            {Object.keys(builtinTeams).map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
         )}
       </div>
 
@@ -653,11 +631,11 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
 
       <FormationModal isOpen={isFormationOpen} onClose={() => setIsFormationOpen(false)} activeTab={activeTab} board={board} />
 
-      {showBuiltinPicker && (
+      {Object.keys(csvPickTeams).length > 0 && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={() => setShowBuiltinPicker(false)}>
+        }} onClick={() => { setCsvPickTeams({}); setSelectedCsvTeam(''); }}>
           <div
             onClick={e => e.stopPropagation()}
             style={{
@@ -668,52 +646,10 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
           >
             <div style={{ fontWeight: 700, fontSize: 14, color: theme.color.text }}>
               <i className='fa-solid fa-users' style={{ marginRight: 8, color: theme.color.accent }} />
-              内蔵プリセット
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 300, overflowY: 'auto' }}>
-              {Object.keys(builtinTeams).map(name => (
-                <button
-                  key={name}
-                  onClick={() => handleSelectBuiltin(name)}
-                  style={{
-                    textAlign: 'left', padding: '10px 14px',
-                    border: `1px solid ${theme.color.border}`,
-                    background: theme.color.surfaceSolid,
-                    color: theme.color.text, borderRadius: theme.radius.md,
-                    cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                  }}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowBuiltinPicker(false)}
-              style={{ background: 'none', border: 'none', color: theme.color.textMuted, cursor: 'pointer', fontSize: 12 }}
-            >キャンセル</button>
-          </div>
-        </div>
-      )}
-
-      {Object.keys(csvTeams).length > 0 && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={() => { setCsvTeams({}); setSelectedCsvTeam(''); }}>
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: theme.color.surface, borderRadius: theme.radius.xl,
-              padding: 20, width: 300, display: 'flex', flexDirection: 'column', gap: 12,
-              boxShadow: theme.shadow.lg,
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 14, color: theme.color.text }}>
-              <i className='fa-solid fa-file-csv' style={{ marginRight: 8, color: theme.color.accent }} />
-              チームを選択
+              チームを選択（チーム{activeTab}に読み込み）
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
-              {Object.keys(csvTeams).map(name => (
+              {Object.keys(csvPickTeams).map(name => (
                 <button
                   key={name}
                   onClick={() => setSelectedCsvTeam(name)}
@@ -727,35 +663,22 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                   }}
                 >
                   <span>{name}</span>
-                  <span style={{ fontSize: 11, color: theme.color.textMuted }}>{csvTeams[name].length}人</span>
+                  <span style={{ fontSize: 11, color: theme.color.textMuted }}>{csvPickTeams[name].length}人</span>
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 12, color: theme.color.textMuted }}>どちらのチームとして読み込みますか？</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => doImport('A')}
-                disabled={!selectedCsvTeam}
-                style={{
-                  flex: 1, padding: '10px 0', border: 'none',
-                  background: theme.color.teamA, color: '#fff',
-                  borderRadius: theme.radius.md, fontWeight: 700, fontSize: 13,
-                  cursor: selectedCsvTeam ? 'pointer' : 'not-allowed', opacity: selectedCsvTeam ? 1 : 0.5,
-                }}
-              >チームA</button>
-              <button
-                onClick={() => doImport('B')}
-                disabled={!selectedCsvTeam}
-                style={{
-                  flex: 1, padding: '10px 0', border: 'none',
-                  background: theme.color.teamB, color: '#fff',
-                  borderRadius: theme.radius.md, fontWeight: 700, fontSize: 13,
-                  cursor: selectedCsvTeam ? 'pointer' : 'not-allowed', opacity: selectedCsvTeam ? 1 : 0.5,
-                }}
-              >チームB</button>
-            </div>
             <button
-              onClick={() => { setCsvTeams({}); setSelectedCsvTeam(''); }}
+              onClick={() => doImportDirect(csvPickTeams[selectedCsvTeam], activeTab)}
+              disabled={!selectedCsvTeam}
+              style={{
+                padding: '10px 0', border: 'none',
+                background: activeTab === 'A' ? theme.color.teamA : theme.color.teamB,
+                color: '#fff', borderRadius: theme.radius.md, fontWeight: 700, fontSize: 13,
+                cursor: selectedCsvTeam ? 'pointer' : 'not-allowed', opacity: selectedCsvTeam ? 1 : 0.5,
+              }}
+            >チーム{activeTab}に読み込む</button>
+            <button
+              onClick={() => { setCsvPickTeams({}); setSelectedCsvTeam(''); }}
               style={{ background: 'none', border: 'none', color: theme.color.textMuted, cursor: 'pointer', fontSize: 12 }}
             >キャンセル</button>
           </div>
