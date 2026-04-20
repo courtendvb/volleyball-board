@@ -24,10 +24,12 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
 
   if (!isVisible) return null;
 
-  const W = labelWidth ?? 220;
+  const W = labelWidth ?? 300;
   const H = 60;
-  const len = (name || 'Team').length;
-  const fontSize = len <= 6 ? 42 : len <= 10 ? 33 : len <= 14 ? 25 : 20;
+  const text = name || 'Team';
+  const maxFontSize = 42;
+  const charWidth = maxFontSize * 0.7;
+  const fontSize = Math.max(16, Math.min(maxFontSize, Math.floor(W * 0.85 / Math.max(text.length, 1) / charWidth * maxFontSize)));
 
   const c = color || '#ef4444';
   const outlineColor = getLuminance(c) > 0.5 ? '#111827' : 'white';
@@ -68,7 +70,7 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
       <Text
         x={0} y={0}
         width={W} height={H}
-        text={name || 'Team'}
+        text={text}
         fontSize={fontSize}
         fontStyle='bold'
         fontFamily={fontFamily}

@@ -151,6 +151,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
     if (label) {
       if (teamName) (label as any).name = teamName;
       if (dominantColor) (label as any).color = dominantColor;
+      (label as any).isVisible = true;
     }
     (board as any).setState({ shapes: updatedShapes, selectedIds: [], camera: board.camera });
     setCsvPickTeams({});
