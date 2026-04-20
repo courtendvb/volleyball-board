@@ -121,12 +121,15 @@ export const getVisibleLocalBounds = (c: CourtShape) => {
 };
 
 export const calcCameraForCourt = (court: CourtShape) => {
-  const PAD = 40;
   const isMobile = window.innerWidth < 640;
   const TAB_BAR_H = isMobile ? 60 : 0;
-  const RIGHT_PANEL_W = isMobile ? 0 : 295;
-  const availW = window.innerWidth - RIGHT_PANEL_W;
-  const availH = window.innerHeight - TAB_BAR_H;
+  // PC: leave room for ControlPanel (left:16 + width:240 + gap:16 = 272) and RightPanel (right:16 + width:275 + gap:16 = 307)
+  const LEFT_OFF = isMobile ? 0 : 272;
+  const RIGHT_OFF = isMobile ? 0 : 307;
+  const TOP_OFF = isMobile ? 0 : 50;
+  const PAD = 24;
+  const areaW = window.innerWidth - LEFT_OFF - RIGHT_OFF;
+  const areaH = window.innerHeight - TAB_BAR_H - TOP_OFF;
 
   const { vx, vy, vw, vh } = getVisibleLocalBounds(court);
   const isHoriz = court.orientation === 'horizontal';
@@ -154,33 +157,35 @@ export const calcCameraForCourt = (court: CourtShape) => {
   const worldH = wMaxY - wMinY;
 
   const scale = Math.min(
-    (availW - PAD * 2) / worldW,
-    (availH - PAD * 2) / worldH,
+    (areaW - PAD * 2) / worldW,
+    (areaH - PAD * 2) / worldH,
   );
   return {
     scale,
-    x: (availW - worldW * scale) / 2 - wMinX * scale,
-    y: (availH - worldH * scale) / 2 - wMinY * scale,
+    x: LEFT_OFF + (areaW - worldW * scale) / 2 - wMinX * scale,
+    y: TOP_OFF + (areaH - worldH * scale) / 2 - wMinY * scale,
   };
 };
 
 export const calcInitialCamera = () => {
-  const PAD = 40;
   const isMobile = window.innerWidth < 640;
   const TAB_BAR_H = isMobile ? 60 : 0;
-  const RIGHT_PANEL_W = isMobile ? 0 : 295;
+  const LEFT_OFF = isMobile ? 0 : 272;
+  const RIGHT_OFF = isMobile ? 0 : 307;
+  const TOP_OFF = isMobile ? 0 : 50;
+  const PAD = 24;
   const totalW = COURT_W + FREE * 2;
   const totalH = COURT_H + FREE * 2;
-  const availW = window.innerWidth - RIGHT_PANEL_W;
-  const availH = window.innerHeight - TAB_BAR_H;
+  const areaW = window.innerWidth - LEFT_OFF - RIGHT_OFF;
+  const areaH = window.innerHeight - TAB_BAR_H - TOP_OFF;
   const scale = Math.min(
-    (availW - PAD * 2) / totalW,
-    (availH - PAD * 2) / totalH,
+    (areaW - PAD * 2) / totalW,
+    (areaH - PAD * 2) / totalH,
   );
   return {
     scale,
-    x: (availW - totalW * scale) / 2 + FREE * scale,
-    y: (availH - totalH * scale) / 2 + FREE * scale,
+    x: LEFT_OFF + (areaW - totalW * scale) / 2 + FREE * scale,
+    y: TOP_OFF + (areaH - totalH * scale) / 2 + FREE * scale,
   };
 };
 
