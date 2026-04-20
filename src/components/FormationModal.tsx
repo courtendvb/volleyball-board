@@ -51,7 +51,9 @@ export const FormationModal = ({ isOpen, onClose, activeTab, board }: FormationM
         const cx = shape.x + mSize / 2;
         const cy = shape.y + mSize / 2;
         const { physX, physY } = invertCourtTransform(cx, cy, court.x, court.y, isHoriz, flipped);
-        teamPhys.push({ id: shape.id, physX, physY, mSize });
+        // キーを背番号にすることでID変更（CSV再読込・白紙リセット）後も復元できる
+        const key = shape.type === 'ball' ? 'ball' : (shape as PlayerShape).number;
+        teamPhys.push({ key, physX, physY, mSize });
       }
     });
 
@@ -60,7 +62,7 @@ export const FormationModal = ({ isOpen, onClose, activeTab, board }: FormationM
     const isBottom = teamPhys.length > 0 ? (sumY / teamPhys.length >= 0) : true;
     const newPositions: Record<string, any> = {};
     teamPhys.forEach(p => {
-      newPositions[p.id] = { netX: isBottom ? p.physX : -p.physX, netY: isBottom ? p.physY : -p.physY, mSize: p.mSize };
+      newPositions[p.key] = { netX: isBottom ? p.physX : -p.physX, netY: isBottom ? p.physY : -p.physY, mSize: p.mSize };
     });
 
     if (isCustom) {
@@ -96,10 +98,19 @@ export const FormationModal = ({ isOpen, onClose, activeTab, board }: FormationM
     const updates: { id: string; startX: number; startY: number; endX: number; endY: number }[] = [];
 
     if (isCustom) {
-      Object.keys(targetPositions).forEach(id => {
-        const shape = board.shapes.find(s => s.id === id);
+      Object.keys(targetPositions).forEach(key => {
+        let shape: typeof board.shapes[number] | undefined;
+        if (key === 'ball') {
+          shape = board.shapes.find(s => s.type === 'ball');
+        } else if (key.includes('-') && key.length > 20) {
+          // 旧フォーマット（ID保存）との後方互換
+          shape = board.shapes.find(s => s.id === key);
+        } else {
+          // 新フォーマット：背番号で照合
+          shape = board.shapes.find(s => s.type === 'player' && (s as PlayerShape).team === activeTab && (s as PlayerShape).number === key);
+        }
         if (!shape) return;
-        const { netX, netY, mSize } = targetPositions[id];
+        const { netX, netY, mSize } = targetPositions[key];
         const physX = isBottomTarget ? netX : -netX;
         const physY = isBottomTarget ? netY : -netY;
         const { worldX, worldY } = applyCourtTransform(physX, physY, court.x, court.y, isHoriz, flipped);
