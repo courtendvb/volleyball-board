@@ -30,6 +30,7 @@ export interface PlayerShape extends BaseShape {
   isVisible: boolean;
   isFree: boolean;
   nameColor?: 'white' | 'black';
+  slot?: string;
 }
 
 export interface BallShape extends BaseShape {

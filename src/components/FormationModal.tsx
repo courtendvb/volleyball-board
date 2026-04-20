@@ -109,8 +109,11 @@ export const FormationModal = ({ isOpen, onClose, activeTab, board }: FormationM
       const teamPlayers = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === activeTab) as PlayerShape[];
       const roleMapping: Record<string, PlayerShape | undefined> = {};
       const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
-      const sorted = [...teamPlayers].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-      ROLES.forEach((role, idx) => { roleMapping[role] = sorted[idx]; });
+      // slotがある選手は直接対応、ない選手は番号順でフォールバック
+      teamPlayers.forEach(p => { if (p.slot && ROLES.includes(p.slot)) roleMapping[p.slot] = p; });
+      const unassigned = teamPlayers.filter(p => !p.slot || !ROLES.includes(p.slot)).sort((a, b) => parseInt(a.number) - parseInt(b.number));
+      let ui = 0;
+      ROLES.forEach(role => { if (!roleMapping[role] && ui < unassigned.length) roleMapping[role] = unassigned[ui++]; });
 
       Object.keys(targetPositions).forEach(role => {
         const player = roleMapping[role];

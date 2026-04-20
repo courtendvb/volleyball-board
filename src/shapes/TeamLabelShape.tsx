@@ -17,6 +17,8 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
 
   const W = 220;
   const H = 60;
+  const len = (name || 'Team').length;
+  const fontSize = len <= 6 ? 28 : len <= 10 ? 22 : len <= 14 ? 17 : 13;
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
@@ -54,23 +56,31 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
           listening={false}
         />
       )}
+      {/* 白背景 */}
       <Rect
         x={0} y={0}
         width={W} height={H}
-        fill={color || '#ef4444'}
-        opacity={0.18}
+        fill='white'
+        opacity={0.82}
         cornerRadius={8}
         listening={false}
       />
-      <Text
+      {/* チームカラーの左端アクセント */}
+      <Rect
         x={0} y={0}
-        width={W} height={H}
+        width={6} height={H}
+        fill={color || '#ef4444'}
+        cornerRadius={[8, 0, 0, 8]}
+        listening={false}
+      />
+      <Text
+        x={10} y={0}
+        width={W - 10} height={H}
         text={name || 'Team'}
-        fontSize={28}
+        fontSize={fontSize}
         fontStyle='bold'
         fontFamily={fontFamily}
         fill={color || '#ef4444'}
-        opacity={0.6}
         align='center'
         verticalAlign='middle'
         listening={false}

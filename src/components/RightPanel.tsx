@@ -137,6 +137,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         color, position: row.position,
         namePosition: asTeam === 'A' ? 'bottom' : 'top',
         isVisible, isFree: false, nameColor,
+        slot: role || undefined,
       } as PlayerShape;
     });
     const colorCount: Record<string, number> = {};

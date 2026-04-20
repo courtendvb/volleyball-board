@@ -189,7 +189,7 @@ export default function App() {
   const [drawWidth, setDrawWidth] = useState(4);
   const [drawBezier, setDrawBezier] = useState(false);
   const [drawDash, setDrawDash] = useState(false);
-  const [fontFamily, setFontFamily] = useState('system-ui, -apple-system, sans-serif');
+  const [fontFamily, setFontFamily] = useState("'Zen Maru Gothic', sans-serif");
   const [textFontSize, setTextFontSize] = useState(24);
 
   // Centralized project data states
