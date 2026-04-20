@@ -124,7 +124,8 @@ export const calcCameraForCourt = (court: CourtShape) => {
   const PAD = 40;
   const isMobile = window.innerWidth < 640;
   const TAB_BAR_H = isMobile ? 60 : 0;
-  const availW = window.innerWidth;
+  const RIGHT_PANEL_W = isMobile ? 0 : 295;
+  const availW = window.innerWidth - RIGHT_PANEL_W;
   const availH = window.innerHeight - TAB_BAR_H;
 
   const { vx, vy, vw, vh } = getVisibleLocalBounds(court);
@@ -167,16 +168,18 @@ export const calcInitialCamera = () => {
   const PAD = 40;
   const isMobile = window.innerWidth < 640;
   const TAB_BAR_H = isMobile ? 60 : 0;
+  const RIGHT_PANEL_W = isMobile ? 0 : 295;
   const totalW = COURT_W + FREE * 2;
   const totalH = COURT_H + FREE * 2;
+  const availW = window.innerWidth - RIGHT_PANEL_W;
   const availH = window.innerHeight - TAB_BAR_H;
   const scale = Math.min(
-    (window.innerWidth - PAD * 2) / totalW,
+    (availW - PAD * 2) / totalW,
     (availH - PAD * 2) / totalH,
   );
   return {
     scale,
-    x: (window.innerWidth - totalW * scale) / 2 + FREE * scale,
+    x: (availW - totalW * scale) / 2 + FREE * scale,
     y: (availH - totalH * scale) / 2 + FREE * scale,
   };
 };
