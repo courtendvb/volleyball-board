@@ -60,7 +60,7 @@ export const buildInitialShapes = (): AnyShape[] => {
       zIndex: 10 + idx,
       number: String(idx + 1), name: '', color: role === 'L' ? '#1f2937' : '#ef4444',
       position: role, namePosition: 'bottom',
-      isVisible: true, isFree: false, nameColor: role === 'L' ? 'white' : 'black',
+      isVisible: true, isFree: false,
     };
     shapes.push(pA);
 
