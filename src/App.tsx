@@ -501,28 +501,24 @@ export default function App() {
     const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
     if (!court) return;
 
+    const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
     const updates: { id: string; startX: number; startY: number; endX: number; endY: number }[] = [];
 
     (['A', 'B'] as const).forEach(team => {
       const posMap = calcBasePositions(court.x, court.y, court, team);
-      const players = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === team) as PlayerShape[];
+      // 表示中の選手のみ対象
+      const players = board.shapes.filter(s => s.type === 'player' && (s as PlayerShape).team === team && (s as PlayerShape).isVisible) as PlayerShape[];
 
-      const slotPlayers = players.filter(p => p.slot);
-      if (slotPlayers.length > 0) {
-        // CSVスロットベース
-        slotPlayers.forEach(p => {
-          const pos = p.slot ? posMap[p.slot] : undefined;
-          if (pos) updates.push({ id: p.id, startX: p.x, startY: p.y, endX: pos.x, endY: pos.y });
-        });
-      } else {
-        // デフォルト: 背番号順
-        const ROLES = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
-        const sorted = [...players].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-        ROLES.forEach((role, idx) => {
-          const player = sorted[idx];
-          if (player && posMap[role]) updates.push({ id: player.id, startX: player.x, startY: player.y, endX: posMap[role].x, endY: posMap[role].y });
-        });
-      }
+      // スロット付きは直接マッピング、スロットなしは背番号順で空きを埋める
+      const roleMapping: Record<string, PlayerShape> = {};
+      players.forEach(p => { if (p.slot && ROLES.includes(p.slot)) roleMapping[p.slot] = p; });
+      const unassigned = players.filter(p => !p.slot || !ROLES.includes(p.slot)).sort((a, b) => parseInt(a.number) - parseInt(b.number));
+      let ui = 0;
+      ROLES.forEach(role => { if (!roleMapping[role] && ui < unassigned.length) roleMapping[role] = unassigned[ui++]; });
+
+      Object.entries(roleMapping).forEach(([role, player]) => {
+        if (posMap[role]) updates.push({ id: player.id, startX: player.x, startY: player.y, endX: posMap[role].x, endY: posMap[role].y });
+      });
     });
 
     if (updates.length > 0) {
