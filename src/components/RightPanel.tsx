@@ -202,12 +202,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       ? positions.map((_, i) => positions[(i - 1 + 6) % 6])
       : positions.map((_, i) => positions[(i + 1) % 6]);
 
-    // slot も同時に更新（positions[i] が ROTATION_ORDER[(i±1)%6] の位置へ移動するため）
-    board.updateShapes(shapes.map((s, i) => ({
-      id: s.id,
-      changes: { slot: direction === 'gain' ? ROTATION_ORDER[(i - 1 + 6) % 6] : ROTATION_ORDER[(i + 1) % 6] } as any,
-    })));
-
+    // slot は変更しない（slot=役割、物理位置だけ変わる）
     const updates = shapes.map((s, i) => ({ id: s.id, sx: s.x, sy: s.y, ex: targets[i].x, ey: targets[i].y }));
     const duration = 500; const t0 = Date.now();
     if (animRafRef.current !== null) cancelAnimationFrame(animRafRef.current);
