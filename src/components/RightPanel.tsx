@@ -124,9 +124,11 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
       .filter(s => s.type === 'player' && (s as PlayerShape).team === asTeam)
       .map(s => s.id);
     const newPlayers: PlayerShape[] = rows.map((row, idx) => {
-      const role = row.slot ? (SLOT_TO_ROLE[row.slot] ?? '') : (ROLES[idx] ?? '');
+      // スロットはCSVで明示指定した選手のみ設定（空欄はundefined）
+      const role = row.slot ? (SLOT_TO_ROLE[row.slot] ?? '') : '';
+      const fallbackRole = ROLES[idx] ?? '';
       const isLibero = row.position === 'L' || role === 'L';
-      const pos = role && posMap[role] ? posMap[role] : { x: 0, y: 0 };
+      const pos = (role && posMap[role]) ? posMap[role] : (posMap[fallbackRole] || { x: 0, y: 0 });
       const isVisible = !!row.slot && !!role;
       const color = row.color || (isLibero ? '#1f2937' : fallbackColor);
       const nameColor: 'white' | 'black' | undefined = (row.nameColor === 'white' || row.nameColor === 'black')
@@ -138,7 +140,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         color, position: row.position,
         namePosition: 'bottom',
         isVisible, isFree: false, nameColor,
-        slot: role || undefined,
+        slot: role || undefined,  // CSV指定のスロットのみ、空欄はundefined
       } as PlayerShape;
     });
     const colorCount: Record<string, number> = {};
@@ -158,20 +160,53 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
     setSelectedCsvTeam('');
   };
 
+  const assignSlot = (slotName: string, playerId: string) => {
+    const court = board.shapes.find(s => s.type === 'court') as CourtShape | undefined;
+    const posMap = court ? calcBasePositions(court.x, court.y, court, activeTab) : {};
+    const batch: { id: string; changes: Partial<PlayerShape> }[] = [];
+
+    // 同スロットにいた前の選手をベンチへ（1回のupdateShapesで原子的に更新）
+    const prev = teamPlayers.find(p => p.slot === slotName);
+    if (prev && prev.id !== playerId) {
+      batch.push({ id: prev.id, changes: { slot: undefined, isVisible: false } as any });
+    }
+
+    const player = teamPlayers.find(p => p.id === playerId);
+    if (player) {
+      const pos = posMap[slotName];
+      const changes: any = { slot: slotName, isVisible: true };
+      if (pos) { changes.x = pos.x; changes.y = pos.y; }
+      batch.push({ id: playerId, changes });
+    }
+
+    if (batch.length > 0) board.updateShapes(batch as any);
+  };
+
+  const clearSlot = (slotName: string) => {
+    const player = teamPlayers.find(p => p.slot === slotName);
+    if (player) board.updateShape(player.id, { slot: undefined, isVisible: false } as any);
+  };
+
   const handleRotate = (direction: 'gain' | 'back') => {
     const ROTATION_ORDER = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1'];
-    const sorted = [...teamPlayers].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-
-    const roleMapping: Record<string, PlayerShape | undefined> = {};
-    ROTATION_ORDER.forEach((role, idx) => { roleMapping[role] = sorted[idx]; });
-
-    const shapes = ROTATION_ORDER.map(role => roleMapping[role]).filter(Boolean) as PlayerShape[];
-    if (shapes.length < 6) return alert('ローテーションは同じチームに6人の選手が必要です');
+    // スロットベースで6人取得（スロット未設定の場合は表示中の背番号順フォールバック）
+    const slotPlayers = ROTATION_ORDER.map(role => teamPlayers.find(p => p.slot === role)).filter(Boolean) as PlayerShape[];
+    const shapes = slotPlayers.length === 6 ? slotPlayers : (() => {
+      const sorted = [...teamPlayers].filter(p => p.isVisible).sort((a, b) => parseInt(a.number) - parseInt(b.number));
+      return ROTATION_ORDER.map((_, i) => sorted[i]).filter(Boolean) as PlayerShape[];
+    })();
+    if (shapes.length < 6) return alert('コート上に6人の選手が必要です（スタメンを設定してください）');
 
     const positions = shapes.map(s => ({ x: s.x, y: s.y }));
     const targets = direction === 'gain'
       ? positions.map((_, i) => positions[(i - 1 + 6) % 6])
       : positions.map((_, i) => positions[(i + 1) % 6]);
+
+    // slot も同時に更新（positions[i] が ROTATION_ORDER[(i±1)%6] の位置へ移動するため）
+    board.updateShapes(shapes.map((s, i) => ({
+      id: s.id,
+      changes: { slot: direction === 'gain' ? ROTATION_ORDER[(i - 1 + 6) % 6] : ROTATION_ORDER[(i + 1) % 6] } as any,
+    })));
 
     const updates = shapes.map((s, i) => ({ id: s.id, sx: s.x, sy: s.y, ex: targets[i].x, ey: targets[i].y }));
     const duration = 500; const t0 = Date.now();
@@ -328,6 +363,46 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
 
       <Divider />
 
+      {/* スタメン（スロット割り当て） */}
+      <div>
+        <SectionLabel>スタメン</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+          {ROLES.map(slot => {
+            const assigned = teamPlayers.find(p => p.slot === slot);
+            return (
+              <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, width: 30, flexShrink: 0,
+                  color: theme.color.textSecondary, textAlign: 'right',
+                }}>{slot}</span>
+                <select
+                  value={assigned?.id ?? ''}
+                  onChange={e => e.target.value ? assignSlot(slot, e.target.value) : clearSlot(slot)}
+                  style={{
+                    flex: 1, fontSize: 12, padding: '5px 6px',
+                    borderRadius: theme.radius.md,
+                    border: `1px solid ${assigned ? theme.color.accent : theme.color.border}`,
+                    background: assigned ? theme.color.accentSoft : theme.color.surfaceSolid,
+                    color: theme.color.text, cursor: 'pointer',
+                  }}
+                >
+                  <option value=''>── 未割当 ──</option>
+                  {[...teamPlayers]
+                    .sort((a, b) => parseInt(a.number) - parseInt(b.number))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        #{p.number}{p.name ? ` ${p.name}` : ''}{p.position ? ` (${p.position})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Divider />
+
       <div>
         <SectionLabel>プレイヤー ({teamPlayers.length})</SectionLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
@@ -378,15 +453,24 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                       cursor: 'text', minWidth: 0, padding: 0,
                     }}
                   />
-                  {p.position && (
+                  {p.slot ? (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      background: theme.color.accent, color: 'white',
+                      padding: '2px 5px', borderRadius: theme.radius.sm, flexShrink: 0,
+                    }}>{p.slot}</span>
+                  ) : p.position ? (
                     <span style={{
                       fontSize: 10, fontWeight: 700, letterSpacing: '0.02em',
-                      background: theme.color.text, color: 'white',
-                      padding: '2px 6px', borderRadius: theme.radius.sm,
+                      background: theme.color.surfaceSunken, color: theme.color.textSecondary,
+                      padding: '2px 5px', borderRadius: theme.radius.sm, flexShrink: 0,
                     }}>{p.position}</span>
-                  )}
+                  ) : null}
                   <IconButton
-                    onClick={() => updatePlayer(p.id, { isVisible: !p.isVisible })}
+                    onClick={() => {
+                      const next = !p.isVisible;
+                      updatePlayer(p.id, next ? { isVisible: true } : { isVisible: false, slot: undefined } as any);
+                    }}
                     title='表示/非表示'
                     style={{ width: 24, height: 24 }}
                   >

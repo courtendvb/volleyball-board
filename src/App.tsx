@@ -60,7 +60,7 @@ export const buildInitialShapes = (): AnyShape[] => {
       zIndex: 10 + idx,
       number: String(idx + 1), name: '', color: role === 'L' ? '#1f2937' : '#ef4444',
       position: role, namePosition: 'bottom',
-      isVisible: true, isFree: false,
+      isVisible: true, isFree: false, slot: role,
     };
     shapes.push(pA);
 
@@ -253,7 +253,19 @@ export default function App() {
     const savedBoard = localStorage.getItem(STORAGE_KEY);
     if (savedBoard) {
       try {
-        board.setState(JSON.parse(savedBoard));
+        const parsed = JSON.parse(savedBoard);
+        // スロット未設定の可視選手を自動マイグレーション
+        const roles = ['S', 'OH1', 'MB2', 'OP', 'OH2', 'MB1', 'L'];
+        (['A', 'B'] as const).forEach(team => {
+          const tp = parsed.shapes.filter((s: any) => s.type === 'player' && s.team === team);
+          const usedSlots = new Set(tp.filter((p: any) => p.slot).map((p: any) => p.slot));
+          const freeSlots = roles.filter(r => !usedSlots.has(r));
+          let fi = 0;
+          tp.filter((p: any) => p.isVisible && !p.slot)
+            .sort((a: any, b: any) => parseInt(a.number) - parseInt(b.number))
+            .forEach((p: any) => { if (fi < freeSlots.length) p.slot = freeSlots[fi++]; });
+        });
+        board.setState(parsed);
       } catch { /* ignore */ }
     } else {
       const shapes = buildInitialShapes();
