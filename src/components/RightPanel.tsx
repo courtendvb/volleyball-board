@@ -58,6 +58,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
   const animRafRef = useRef<number | null>(null);
   const [csvPickTeams, setCsvPickTeams] = useState<Record<string, CsvRow[]>>({});
   const [selectedCsvTeam, setSelectedCsvTeam] = useState<string>('');
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const hidden = isMobile && !mobileVisible;
 
   const players = board.shapes.filter(s => s.type === 'player') as PlayerShape[];
@@ -364,32 +365,81 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
           {ROLES.map(slot => {
             const assigned = teamPlayers.find(p => p.slot === slot);
+            const isOver = dragOverSlot === slot;
             return (
-              <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                key={slot}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                onDragOver={!isMobile ? e => { e.preventDefault(); setDragOverSlot(slot); } : undefined}
+                onDragLeave={!isMobile ? () => setDragOverSlot(null) : undefined}
+                onDrop={!isMobile ? e => {
+                  e.preventDefault();
+                  const pid = e.dataTransfer.getData('text/plain');
+                  if (pid) assignSlot(slot, pid);
+                  setDragOverSlot(null);
+                } : undefined}
+              >
                 <span style={{
                   fontSize: 10, fontWeight: 700, width: 30, flexShrink: 0,
                   color: theme.color.textSecondary, textAlign: 'right',
                 }}>{slot}</span>
-                <select
-                  value={assigned?.id ?? ''}
-                  onChange={e => e.target.value ? assignSlot(slot, e.target.value) : clearSlot(slot)}
-                  style={{
-                    flex: 1, fontSize: 12, padding: '5px 6px',
-                    borderRadius: theme.radius.md,
-                    border: `1px solid ${assigned ? theme.color.accent : theme.color.border}`,
-                    background: assigned ? theme.color.accentSoft : theme.color.surfaceSolid,
-                    color: theme.color.text, cursor: 'pointer',
-                  }}
-                >
-                  <option value=''>── 未割当 ──</option>
-                  {[...teamPlayers]
-                    .sort((a, b) => parseInt(a.number) - parseInt(b.number))
-                    .map(p => (
-                      <option key={p.id} value={p.id}>
-                        #{p.number}{p.name ? ` ${p.name}` : ''}{p.position ? ` (${p.position})` : ''}
-                      </option>
-                    ))}
-                </select>
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 4,
+                  borderRadius: theme.radius.md,
+                  border: `1px solid ${isOver ? theme.color.accent : assigned ? theme.color.accent : theme.color.border}`,
+                  background: isOver ? theme.color.accent + '22' : assigned ? theme.color.accentSoft : theme.color.surfaceSolid,
+                  padding: '3px 4px',
+                  transition: theme.transition,
+                  minHeight: 30,
+                }}>
+                  {assigned ? (
+                    <>
+                      <div
+                        draggable={!isMobile}
+                        onDragStart={!isMobile ? e => {
+                          e.dataTransfer.setData('text/plain', assigned.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                        } : undefined}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 5, flex: 1,
+                          cursor: isMobile ? 'default' : 'grab',
+                        }}
+                      >
+                        <div style={{
+                          width: 20, height: 20, borderRadius: '50%', background: assigned.color,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 9, fontWeight: 700, color: 'white', flexShrink: 0,
+                        }}>{assigned.number}</div>
+                        <span style={{ fontSize: 12, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {assigned.name || `#${assigned.number}`}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => clearSlot(slot)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.color.textMuted, padding: '0 2px', fontSize: 11, lineHeight: 1, flexShrink: 0 }}
+                        title='ベンチへ'
+                      >×</button>
+                    </>
+                  ) : (
+                    <select
+                      value=''
+                      onChange={e => e.target.value && assignSlot(slot, e.target.value)}
+                      style={{
+                        flex: 1, fontSize: 12, border: 'none', background: 'transparent',
+                        color: theme.color.textMuted, cursor: 'pointer', padding: '2px 0',
+                      }}
+                    >
+                      <option value=''>── 未割当 ──</option>
+                      {[...teamPlayers]
+                        .sort((a, b) => parseInt(a.number) - parseInt(b.number))
+                        .map(p => (
+                          <option key={p.id} value={p.id}>
+                            #{p.number}{p.name ? ` ${p.name}` : ''}{p.position ? ` (${p.position})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -408,13 +458,18 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
               return (
                 <div
                   key={p.id}
+                  draggable={!isMobile}
+                  onDragStart={!isMobile ? e => {
+                    e.dataTransfer.setData('text/plain', p.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  } : undefined}
                   onClick={() => board.select([p.id])}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     background: isSel ? theme.color.accentSoft : theme.color.surfaceSolid,
                     borderRadius: theme.radius.md,
                     padding: '7px 10px',
-                    cursor: 'pointer',
+                    cursor: isMobile ? 'pointer' : 'grab',
                     border: `1px solid ${isSel ? theme.color.accent : theme.color.border}`,
                     opacity: p.isVisible ? 1 : 0.5,
                     transition: theme.transition,
