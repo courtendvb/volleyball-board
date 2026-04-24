@@ -13,9 +13,11 @@ interface Props {
   isSelected: boolean;
   fontFamily?: string;
   isSelectTool?: boolean;
+  onSnapDrag?: (id: string, x: number, y: number, size: number) => { x: number; y: number };
+  onClearGuides?: () => void;
 }
 
-export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'system-ui, -apple-system, sans-serif', isSelectTool = true }: Props) => {
+export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'system-ui, -apple-system, sans-serif', isSelectTool = true, onSnapDrag, onClearGuides }: Props) => {
   const { id, x, y, color, number, name, namePosition, position, isVisible, nameColor } = shape;
   const textColor = nameColor === 'black' ? '#111827' : 'white';
   const numLen = number.length;
@@ -27,8 +29,16 @@ export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'sy
   else if (fontFamily.includes('Oswald')) { offsetY = -6; offsetX = 3; }
   else if (fontFamily.includes('Fuijifont')) { offsetY = -5; }
 
+  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
+    if (!onSnapDrag) return;
+    const snapped = onSnapDrag(id, e.target.x(), e.target.y(), SIZE);
+    e.target.x(snapped.x);
+    e.target.y(snapped.y);
+  };
+
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    onClearGuides?.();
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
 
   const handleSelect = (shiftKey: boolean) => {
@@ -58,6 +68,7 @@ export const PlayerShapeRenderer = ({ shape, board, isSelected, fontFamily = 'sy
       y={y}
       draggable={isSelectTool}
       visible={isVisible}
+      onDragMove={onSnapDrag ? handleDragMove : undefined}
       onDragEnd={handleDragEnd}
       onClick={handleClick}
       onTap={handleTap}

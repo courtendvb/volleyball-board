@@ -8,7 +8,7 @@ interface Props { shape: TextAnnotation; board: Board; isSelected: boolean; }
 export const TextAnnotationRenderer = ({ shape, board, isSelected }: Props) => {
   const { id, x, y, text, fontSize, color } = shape;
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
   const handleSelect = (shiftKey: boolean) => {
     if (shiftKey) {

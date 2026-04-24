@@ -232,6 +232,53 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('canvas');
   const isMobile = useIsMobile();
 
+  // Smart guides
+  const [guides, setGuides] = useState<{ type: 'h' | 'v'; pos: number }[]>([]);
+
+  const SNAP_PX = 8;
+  const PLAYER_SIZE = 70;
+  const BALL_SIZE = 28;
+
+  const computeSnapAndGuides = (movingId: string, x: number, y: number, sz: number): { x: number; y: number } => {
+    const threshold = SNAP_PX / board.camera.scale;
+    const mAnchorsX = [x, x + sz / 2, x + sz];
+    const mAnchorsY = [y, y + sz / 2, y + sz];
+
+    type Cand = { delta: number; guidePos: number };
+    const xCands: Cand[] = [];
+    const yCands: Cand[] = [];
+
+    board.shapes.forEach(s => {
+      if (s.id === movingId) return;
+      if (s.type !== 'player' && s.type !== 'ball') return;
+      if (s.type === 'player' && !(s as PlayerShape).isVisible) return;
+      if (s.type === 'ball' && (s as BallShape).isVisible === false) return;
+      const sz2 = s.type === 'player' ? PLAYER_SIZE : BALL_SIZE;
+      const sAnchorsX = [s.x, s.x + sz2 / 2, s.x + sz2];
+      const sAnchorsY = [s.y, s.y + sz2 / 2, s.y + sz2];
+      mAnchorsX.forEach(ma => sAnchorsX.forEach(sa => xCands.push({ delta: sa - ma, guidePos: sa })));
+      mAnchorsY.forEach(ma => sAnchorsY.forEach(sa => yCands.push({ delta: sa - ma, guidePos: sa })));
+    });
+
+    const newGuides: { type: 'h' | 'v'; pos: number }[] = [];
+    let snappedX = x, snappedY = y;
+
+    const bestX = xCands.reduce<Cand | null>((b, c) => !b || Math.abs(c.delta) < Math.abs(b.delta) ? c : b, null);
+    if (bestX && Math.abs(bestX.delta) <= threshold) {
+      snappedX = x + bestX.delta;
+      newGuides.push({ type: 'v', pos: bestX.guidePos });
+    }
+
+    const bestY = yCands.reduce<Cand | null>((b, c) => !b || Math.abs(c.delta) < Math.abs(b.delta) ? c : b, null);
+    if (bestY && Math.abs(bestY.delta) <= threshold) {
+      snappedY = y + bestY.delta;
+      newGuides.push({ type: 'h', pos: bestY.guidePos });
+    }
+
+    setGuides(newGuides);
+    return { x: snappedX, y: snappedY };
+  };
+
   // Theme mode
   const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialThemeMode);
   useEffect(() => { applyThemeMode(themeMode); }, [themeMode]);
@@ -698,9 +745,9 @@ export default function App() {
               case 'court':
                 return <CourtShapeRenderer key={shape.id} shape={shape} />;
               case 'player':
-                return <PlayerShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} fontFamily={fontFamily} isSelectTool={tool === 'select'} />;
+                return <PlayerShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} fontFamily={fontFamily} isSelectTool={tool === 'select'} onSnapDrag={computeSnapAndGuides} onClearGuides={() => setGuides([])} />;
               case 'ball':
-                return <BallShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} />;
+                return <BallShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} onSnapDrag={computeSnapAndGuides} onClearGuides={() => setGuides([])} />;
               case 'team-label':
                 return <TeamLabelShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} fontFamily={fontFamily} />;
               case 'arrow':
@@ -817,6 +864,23 @@ export default function App() {
             </>
           )}
         </Layer>
+
+        {/* Smart guide lines */}
+        {guides.length > 0 && (
+          <Layer listening={false}>
+            {guides.map((g, i) => (
+              <Line
+                key={i}
+                points={g.type === 'v' ? [g.pos, -10000, g.pos, 10000] : [-10000, g.pos, 10000, g.pos]}
+                stroke='#3b82f6'
+                strokeWidth={1 / board.camera.scale}
+                dash={[6 / board.camera.scale, 4 / board.camera.scale]}
+                listening={false}
+                opacity={0.8}
+              />
+            ))}
+          </Layer>
+        )}
       </BoardCanvas>
 
       <ControlPanel

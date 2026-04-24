@@ -10,15 +10,25 @@ interface Props {
   shape: BallShape;
   board: Board;
   isSelected: boolean;
+  onSnapDrag?: (id: string, x: number, y: number, size: number) => { x: number; y: number };
+  onClearGuides?: () => void;
 }
 
-export const BallShapeRenderer = ({ shape, board, isSelected }: Props) => {
+export const BallShapeRenderer = ({ shape, board, isSelected, onSnapDrag, onClearGuides }: Props) => {
   const { id, x, y, isVisible } = shape;
 
   if (isVisible === false) return null;
 
+  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
+    if (!onSnapDrag) return;
+    const snapped = onSnapDrag(id, e.target.x(), e.target.y(), SIZE);
+    e.target.x(snapped.x);
+    e.target.y(snapped.y);
+  };
+
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    onClearGuides?.();
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
 
   const handleSelect = (shiftKey: boolean) => {
@@ -43,7 +53,7 @@ export const BallShapeRenderer = ({ shape, board, isSelected }: Props) => {
   };
 
   return (
-    <Group x={x} y={y} draggable onDragEnd={handleDragEnd} onClick={handleClick} onTap={handleTap}>
+    <Group x={x} y={y} draggable onDragMove={onSnapDrag ? handleDragMove : undefined} onDragEnd={handleDragEnd} onClick={handleClick} onTap={handleTap}>
       {isSelected && (
         <Circle x={R} y={R} radius={R + 4} stroke='#3b82f6' strokeWidth={2} dash={[4, 3]} fill='transparent' listening={false} />
       )}

@@ -408,7 +408,10 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                         <div style={{
                           width: 20, height: 20, borderRadius: '50%', background: assigned.color,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 9, fontWeight: 700, color: 'white', flexShrink: 0,
+                          fontSize: 9, fontWeight: 700, flexShrink: 0,
+                          color: assigned.nameColor === 'black' ? '#111827' : 'white',
+                          border: '1px solid rgba(0,0,0,0.18)',
+                          boxSizing: 'border-box',
                         }}>{assigned.number}</div>
                         <span style={{ fontSize: 12, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {assigned.name || `#${assigned.number}`}
@@ -478,7 +481,8 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%', background: p.color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, boxShadow: theme.shadow.sm, position: 'relative',
+                    flexShrink: 0, position: 'relative',
+                    border: '1px solid rgba(0,0,0,0.18)', boxSizing: 'border-box',
                   }}>
                     <input
                       value={p.number}
@@ -486,7 +490,7 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                       onClick={e => e.stopPropagation()}
                       style={{
                         width: '100%', height: '100%', border: 'none', background: 'transparent',
-                        color: 'white', fontSize: 11, fontWeight: 700, textAlign: 'center',
+                        color: p.nameColor === 'black' ? '#111827' : 'white', fontSize: 11, fontWeight: 700, textAlign: 'center',
                         cursor: 'text', padding: 0, outline: 'none', borderRadius: '50%',
                       }}
                       maxLength={2}

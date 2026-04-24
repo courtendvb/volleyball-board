@@ -33,7 +33,7 @@ export const TeamLabelShapeRenderer = ({ shape, board, isSelected, fontFamily = 
   const outlineColor = getLuminance(c) > 0.5 ? '#111827' : 'white';
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
 
   const handleSelect = (shiftKey: boolean) => {

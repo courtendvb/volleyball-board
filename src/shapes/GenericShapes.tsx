@@ -22,7 +22,7 @@ export const RectShapeRenderer = ({ shape, board, isSelected, showTransformer }:
   }, [showTransformer]);
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
   const handleSelect = (shiftKey: boolean) => {
     if (shiftKey) {
@@ -82,7 +82,7 @@ export const CircleShapeRenderer = ({ shape, board, isSelected }: CircleProps) =
   const { id, x, y, radius, color, strokeWidth } = shape;
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    board.updateShape(id, { x: board.snap(e.target.x()), y: board.snap(e.target.y()) });
+    board.updateShape(id, { x: e.target.x(), y: e.target.y() });
   };
   const handleSelect = (shiftKey: boolean) => {
     if (shiftKey) {
