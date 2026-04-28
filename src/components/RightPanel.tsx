@@ -681,15 +681,31 @@ export const RightPanel = ({ board, fontFamily, setFontFamily, mobileVisible, on
                 <FieldLabel>テキスト</FieldLabel>
                 <Input value={selectedText.text} onChange={v => updateShape(selectedText.id, { text: v })} />
               </div>
+              <div>
+                <FieldLabel>フォント</FieldLabel>
+                <Select
+                  value={selectedText.fontFamily || FONTS[0].value}
+                  onChange={v => updateShape(selectedText.id, { fontFamily: v })}
+                >
+                  {FONTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </Select>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <FieldLabel>サイズ</FieldLabel>
-                  <Select
-                    value={String(selectedText.fontSize || 20)}
-                    onChange={v => updateShape(selectedText.id, { fontSize: Number(v) })}
-                  >
-                    {[16, 20, 24, 32, 48].map(s => <option key={s} value={s}>{s}px</option>)}
-                  </Select>
+                  <input
+                    type='number'
+                    min={8}
+                    max={200}
+                    value={selectedText.fontSize || 20}
+                    onChange={e => { const v = parseInt(e.target.value); if (v >= 8) updateShape(selectedText.id, { fontSize: v }); }}
+                    style={{
+                      width: '100%', padding: '6px 8px', borderRadius: theme.radius.md,
+                      border: `1px solid ${theme.color.border}`,
+                      background: theme.color.surfaceSolid, color: theme.color.text,
+                      fontSize: 13, boxSizing: 'border-box',
+                    }}
+                  />
                 </div>
                 <div>
                   <FieldLabel>色</FieldLabel>

@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { theme, panelSurface } from '../ui/theme';
 import { Button, IconButton } from '../ui/Button';
-import { SectionLabel, Divider, FieldLabel } from '../ui/Panel';
+import { SectionLabel, Divider, FieldLabel, Select } from '../ui/Panel';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+const FONTS = [
+  { label: '標準', value: 'system-ui, -apple-system, sans-serif' },
+  { label: '手書き', value: "'Zen Maru Gothic', sans-serif" },
+  { label: '丸ゴシック', value: "'M PLUS Rounded 1c', sans-serif" },
+  { label: 'Oswald', value: "'Oswald', sans-serif" },
+];
 
 type DrawTool = 'select' | 'arrow' | 'line' | 'text' | 'rect' | 'circle' | 'ellipse';
 
@@ -20,6 +27,8 @@ interface Props {
   onClearDrawings: () => void;
   textFontSize: number;
   setTextFontSize: (s: number) => void;
+  textFontFamily: string;
+  setTextFontFamily: (f: string) => void;
   mobileVisible?: boolean;
 }
 
@@ -38,7 +47,7 @@ const COLORS = ['#ef4444', '#3b82f6', '#0f172a', '#f59e0b', '#10b981', '#ffffff'
 export const DrawingPanel = ({
   tool, setTool, drawColor, setDrawColor, drawWidth, setDrawWidth,
   drawDash, setDrawDash, drawBezier, setDrawBezier, onClearDrawings,
-  textFontSize, setTextFontSize, mobileVisible,
+  textFontSize, setTextFontSize, textFontFamily, setTextFontFamily, mobileVisible,
 }: Props) => {
   const [collapsed, setCollapsed] = useState(false);
   const isMobile = useIsMobile();
@@ -169,16 +178,30 @@ export const DrawingPanel = ({
           )}
 
           {tool === 'text' && (
-            <div>
-              <FieldLabel>文字サイズ</FieldLabel>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {[16, 20, 24, 32].map(s => (
-                  <Button key={s} size='sm' active={textFontSize === s} onClick={() => setTextFontSize(s)} fullWidth>
-                    {s}
-                  </Button>
-                ))}
+            <>
+              <div>
+                <FieldLabel>フォント</FieldLabel>
+                <Select value={textFontFamily} onChange={setTextFontFamily}>
+                  {FONTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </Select>
               </div>
-            </div>
+              <div>
+                <FieldLabel>文字サイズ</FieldLabel>
+                <input
+                  type='number'
+                  min={8}
+                  max={200}
+                  value={textFontSize}
+                  onChange={e => { const v = parseInt(e.target.value); if (v >= 8) setTextFontSize(v); }}
+                  style={{
+                    width: '100%', padding: '6px 8px', borderRadius: theme.radius.md,
+                    border: `1px solid ${theme.color.border}`,
+                    background: theme.color.surfaceSolid, color: theme.color.text,
+                    fontSize: 13, boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </>
           )}
 
           {(tool === 'arrow' || tool === 'line') && (

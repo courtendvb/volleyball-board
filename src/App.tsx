@@ -203,6 +203,7 @@ export default function App() {
   const [drawDash, setDrawDash] = useState(false);
   const [fontFamily, setFontFamily] = useState("'Zen Maru Gothic', sans-serif");
   const [textFontSize, setTextFontSize] = useState(24);
+  const [textFontFamily, setTextFontFamily] = useState("'Zen Maru Gothic', sans-serif");
 
   // Centralized project data states
   const [_savedAnimations, setSavedAnimations] = useState<Record<string, SavedAnimation>>({});
@@ -217,6 +218,7 @@ export default function App() {
   // Text input state
   const [textInput, setTextInput] = useState<{ wx: number; wy: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   // Drawing state (non-bezier)
   const [drawPoints, setDrawPoints] = useState<number[]>([]);
@@ -503,6 +505,15 @@ export default function App() {
   };
 
   const handleTextCommit = () => {
+    if (editingTextId) {
+      if (textInputValue.trim()) {
+        board.updateShape(editingTextId, { text: textInputValue });
+      }
+      setEditingTextId(null);
+      setTextInput(null);
+      setTextInputValue('');
+      return;
+    }
     if (!textInput || !textInputValue.trim()) {
       setTextInput(null);
       setTextInputValue('');
@@ -516,10 +527,19 @@ export default function App() {
       text: textInputValue,
       fontSize: textFontSize,
       color: drawColor,
+      fontFamily: textFontFamily,
     };
     board.addShape(shape);
     setTextInput(null);
     setTextInputValue('');
+  };
+
+  const handleTextEdit = (id: string) => {
+    const shape = board.shapes.find(s => s.id === id) as TextAnnotation | undefined;
+    if (!shape) return;
+    setEditingTextId(id);
+    setTextInput({ wx: shape.x, wy: shape.y });
+    setTextInputValue(shape.text);
   };
 
   // ── Add shapes ───────────────────────────────────────────
@@ -755,7 +775,7 @@ export default function App() {
               case 'line':
                 return <LineShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} />;
               case 'text':
-                return <TextAnnotationRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} />;
+                return <TextAnnotationRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} onEdit={() => handleTextEdit(shape.id)} />;
               case 'rect':
                 return <RectShapeRenderer key={shape.id} shape={shape} board={board} isSelected={isSelected} showTransformer={showTransformer} />;
               case 'circle':
@@ -920,6 +940,8 @@ export default function App() {
         onClearDrawings={handleClearDrawings}
         textFontSize={textFontSize}
         setTextFontSize={setTextFontSize}
+        textFontFamily={textFontFamily}
+        setTextFontFamily={setTextFontFamily}
         mobileVisible={!isMobile || mobileTab === 'draw'}
       />
 
@@ -933,7 +955,11 @@ export default function App() {
       )}
 
       {/* Text input overlay */}
-      {textInput && textOverlayPos && (
+      {textInput && textOverlayPos && (() => {
+        const editingShape = editingTextId ? board.shapes.find(s => s.id === editingTextId) as TextAnnotation | undefined : undefined;
+        const overlayColor = editingShape?.color ?? drawColor;
+        const overlayFontSize = editingShape?.fontSize ?? textFontSize;
+        return (
         <textarea
           autoFocus
           value={textInputValue}
@@ -941,7 +967,7 @@ export default function App() {
           onBlur={handleTextCommit}
           onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleTextCommit(); }
-            if (e.key === 'Escape') { setTextInput(null); setTextInputValue(''); }
+            if (e.key === 'Escape') { setEditingTextId(null); setTextInput(null); setTextInputValue(''); }
           }}
           style={{
             position: 'fixed',
@@ -952,8 +978,8 @@ export default function App() {
             border: '2px solid #3b82f6',
             borderRadius: 6,
             padding: '4px 8px',
-            fontSize: 16,
-            color: drawColor,
+            fontSize: overlayFontSize,
+            color: overlayColor,
             fontWeight: 'bold',
             minWidth: 120,
             outline: 'none',
@@ -963,7 +989,8 @@ export default function App() {
           rows={2}
           placeholder='テキストを入力...'
         />
-      )}
+        );
+      })()}
     </>
   );
 }

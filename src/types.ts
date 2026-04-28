@@ -69,6 +69,7 @@ export interface TextAnnotation extends BaseShape {
   text: string;
   fontSize: number;
   color: string;
+  fontFamily?: string;
 }
 
 export interface RectShape extends BaseShape {
